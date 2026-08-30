@@ -2,48 +2,23 @@
 name: infra
 description:
   Bring the campaign infrastructure of one project up, or take it down. Use for
-  the lease, the watchdog, and the twelve make infra targets. Takes the absolute
+  the lease, the watchdog, and the make infra targets. Takes the absolute
   project path.
 ---
 
 # Stage — infra
 
-The infrastructure layer agrees across FuguSTX, FuguCTX and FuguTTX. All three
-inherit the same twelve `make infra-*` verbs, the lease rules and the watchdog
-rules from the synced `infra/CLAUDE.md`. So this stage has a stable target name
-everywhere.
+This stage brings the campaign stack up or down. Billing starts at `infra-up`
+and stops at `infra-down`, so this stage owns the lease and the watchdog.
 
-## The argument
-
-This skill takes the absolute project path, for example
-`/Users/<user>/Work/FuguBSD/Projects/FuguSTX`. Without it, stop and ask.
-
-## The steps
-
-1. State the clone and the project you read:
-
-   ```sh
-   echo "clone <project path>"; git -C <project path> rev-parse --short HEAD
-   ```
-
-2. Read `<project path>/train/RUNBOOK.md`. It names the verbs this project uses,
-   and it names the stages this project omits.
-3. Read `<project path>/infra/persistent/RUNBOOK.md`. It holds the offer probe
-   and each manual platform step.
-4. Run the verb from one command line, with an absolute path and the project
-   `.env` export in front:
+1. Read `<project path>/train/RUNBOOK.md` for the verbs this project uses.
+2. Read `<project path>/infra/persistent/RUNBOOK.md` for the offer probe and
+   each manual platform step.
+3. Run the verb on one command line:
 
    ```sh
    set -a; . <project path>/.env; set +a; make -C <project path> infra-<verb>
    ```
 
-   No ambient credential exists (D-05): a bare verb holds no identity, and the
-   run stops. The export names the project, and the spend goes to that project.
-   Shell state does not persist between calls, so the export and the command
-   stay on one line.
-
-## The report
-
-Report the clone, the git HEAD, the command, the exit code, and each number the
-run printed. Report each error string in full. Do not write to the library: the
-observer captures your report.
+Report the lease expiry and the watchdog state after an up. The operator
+contract holds the common rules.

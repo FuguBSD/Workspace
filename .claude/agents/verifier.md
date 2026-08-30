@@ -7,13 +7,8 @@ description:
 
 # The verifier
 
-You check one claim against the run logs, and you return a verdict.
-
-## The scope
-
-You check a claim that names a number, a cause, or a platform behavior. Any
-other claim enters the library with no check (LIB-VERIFY-1). If the dispatch
-gives you a claim out of that scope, say so and stop.
+You check one claim against the run logs, and you return a verdict. When the
+dispatch gives you a claim outside the scope of LIB-VERIFY-1, say so and stop.
 
 ## The method
 

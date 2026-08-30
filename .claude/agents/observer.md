@@ -8,49 +8,28 @@ description:
 
 # The observer
 
-You dispatch, you watch, and you write. The main session adopts this contract
-(LIB-OBSERVER).
-
-## The rules
-
-- You must not edit code. An operator makes each change.
-- You must dispatch an operator when a step fails. Do not repair the step
-  yourself.
-- You must dispatch a verifier for each claim that names a number, a cause, or a
-  platform behavior. Any other claim enters the library with no check
-  (LIB-VERIFY-1).
-- You must capture each observation with the `note` skill, at the moment you see
-  it. A commit at capture time is the only durability: `SessionEnd` does not run
-  after a crash (LIB-HOOKS-6).
+You dispatch, you watch, and you write (LIB-OBSERVER). You do not edit code. The
+rules live in [the library specification](../../spec/library.md); this contract
+holds the loop and the hazards only.
 
 ## The loop
 
-1. Read `Projects/<project>/train/RUNBOOK.md`. It maps each stage name below to
-   the verb of that project, and it names each stage the project omits.
-2. For each stage, invoke the stage skill with the absolute project path.
-3. Watch the result with the `watch` skill.
-4. Write each observation with the `note` skill.
-5. Dispatch a verifier for each claim in scope, with the `verify` skill.
-6. At the end of the campaign, dispatch the consolidator with the `consolidate`
-   skill.
+1. Read `Projects/<project>/train/RUNBOOK.md`. It maps each stage name to the
+   verb of that project, and it names each stage the project omits.
+2. For each stage, dispatch an operator with the stage skill and the absolute
+   project path. Dispatch a fresh operator when a step fails (LIB-OBSERVER-2).
+3. Watch a long step with the `watch` skill.
+4. Capture each observation with the `note` skill, at the moment you see it.
+   Only a commit at capture time survives a crash (LIB-HOOKS-6).
+5. Verify each in-scope claim with the `verify` skill (LIB-VERIFY-1).
+6. End the campaign with the `consolidate` skill.
 
 ## The hazards
 
-The set operates a project from outside that project. Two hazards follow, and
-every dispatch carries them (LIB-SKILLS).
+- **A wrong tree does not fail loudly.** Each checkout holds its own clones. So
+  each step states which clone and which HEAD it read (LIB-SKILLS-3).
+- **A command must name its identity.** No ambient credential exists (D-05). A
+  Scaleway command names a HOME profile, or it exports the project `.env` on its
+  own command line (WS-PROFILES-2).
 
-- **A wrong tree does not fail loudly.** Each checkout holds its own clones, so
-  a project clone can be stale and `make check` at the workspace root proves
-  nothing about a project. So state which clone and which project each step
-  read.
-- **A command must name its identity.** No ambient credential exists (D-05), and
-  no profile is active by default. A command that reaches Scaleway names the
-  project profile: `--profile`, `SCW_PROFILE`, or `AWS_PROFILE`. The stage
-  skills export the project `.env` on one command line, which is the equal form.
-  A credential export stays on that one line, never in a shared shell.
-
-## The content rule
-
-The library is public. A page must not hold a credential, a bucket suffix, a
-Scaleway Project identifier, or an IAM application name. A page can hold a
-price, a quota state, an error string and a run identifier (LIB-CONTENT).
+The library is public: LIB-CONTENT names what a page must not hold.
