@@ -68,6 +68,9 @@ a key pattern, and it catches no identifier.
 - **LIB-ENTRY-4** — The consolidator writes the library at the end of a session.
 - **LIB-ENTRY-5** — A migrated entry must keep its date and its run identifier.
   A migration must not state a claim that the source entry does not make.
+- **LIB-ENTRY-6** — A session-page claim line must start with `Claim:`, and an
+  admission line must start with `Admitted:`. `wiki.pl status` counts both, and
+  the difference is the work that is left.
 
 <a id="lib-wiki"></a>
 

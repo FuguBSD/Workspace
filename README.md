@@ -32,18 +32,12 @@ provides them.
 
 ## Worktrees
 
-Git worktrees live under `.claude/worktrees/` (gitignored). The `WorktreeCreate`
-and `WorktreeRemove` hooks in `.claude/settings.json` fully replace the built-in
-worktree handling of Claude Code. In a fresh worktree, create runs
-`make bootstrap MAIN=<main checkout>`, and the `clone` subcommand materializes
-the gitignored paths locally, with no network and no `gh`.
-
-No hook removes a worktree (D-06). A session captures its work in the clones
-inside its worktree, so an automatic removal at a failed session destroys that
-work. The remove hook reports the path and the manual command, and it changes
-nothing. `make worktree-remove` is the manual path, and it refuses a worktree
-that holds an uncommitted change or a commit that no remote holds. `FORCE=1`
-overrides the refusal, and `make worktree-list` shows which worktree is safe.
+Git worktrees live under `.claude/worktrees/` (gitignored). The hooks in
+`.claude/settings.json` replace the built-in worktree handling of Claude Code,
+per [WS-HOOKS](spec/workspace.md#ws-hooks): create bootstraps the gitignored
+paths locally, and no hook removes a worktree (D-06). `make worktree-remove` is
+the manual removal path, and `make worktree-list` shows which worktree is safe
+to remove.
 
 ## The learning library
 
