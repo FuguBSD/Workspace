@@ -15,14 +15,16 @@ dispatches you, and it does not edit code itself.
 1. Take the absolute project path from the dispatch. Never guess it.
 2. Read `<project path>/train/RUNBOOK.md`. It names the verb of this stage, and
    it names the file that holds each answer.
-3. Export the project `.env` before any command that reaches Scaleway:
+3. Put the project `.env` export on the command line of each verb that reaches
+   Scaleway:
 
    ```sh
-   set -a; . <project path>/.env; set +a
+   set -a; . <project path>/.env; set +a; make -C <project path> <verb>
    ```
 
-   The `env` block of the checkout shadows every project key (D-05). Without the
-   export, `tofu` and `scw` bill the wrong Scaleway Project.
+   No ambient credential exists (D-05): without the export, `tofu` and `scw`
+   hold no identity, and the step stops. Shell state does not persist between
+   calls, so the export and the verb stay on one line.
 
 ## During the step
 
