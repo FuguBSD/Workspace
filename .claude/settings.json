@@ -1,0 +1,79 @@
+{
+  "worktree": {
+    "baseRef": "head"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(tofu apply:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(gh run:*)",
+      "Bash(aws s3:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "One operator works in this personal FuguBSD workspace. No production traffic and no third-party data depend on it. The workspace repository has no remote and no CI.",
+      "Each project clone under Projects/ declares its Scaleway infrastructure as OpenTofu stacks. tofu apply executes a saved plan, and the operator approves the diff in chat first.",
+      "Budget alerts at EUR 300 per month, a price forecast gate, and an idle watchdog cap the Scaleway spend.",
+      "gh workflow run dispatches the campaign workflows of the operator's own repositories. The workflows enforce the same spend gates, a lease expiry, and a teardown watchdog.",
+      "scw iam api-key create and delete perform the CI credential delegation that the project RUNBOOK documents. Each minted key has a project scope and an expiry date.",
+      "ssh-keygen mints the campaign SSH keypairs, and gh secret set stores minted credentials for CI. Secret values go to gitignored files under explore/, never to command output.",
+      "Shell state does not persist between tool calls. One command line therefore sources .env, exports the keys, and runs one tool."
+    ]
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.cwd, (.name // empty)' | { read -r c; read -r n; exec perl \"$c/scripts/worktree.pl\" -C \"$c\" create \"$n\"; }",
+            "timeout": 120,
+            "statusMessage": "Bootstrapping worktree: cloning projects and copying .env files"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.worktree_path // empty' | { read -r w; [ -n \"$w\" ] || exit 0; r=\"${w%/.claude/worktrees/*}\"; n=\"${w##*/.claude/worktrees/}\"; echo \"worktree kept: $w\" >&2; echo \"to remove it: make -C \\\"$r\\\" worktree-remove NAME=\\\"$n\\\"\" >&2; exit 0; }",
+            "timeout": 60,
+            "statusMessage": "Keeping the worktree: removal is manual"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "exec perl \"$CLAUDE_PROJECT_DIR/scripts/wiki.pl\" hook-start",
+            "timeout": 60,
+            "statusMessage": "Opening the library session page"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "exec perl \"$CLAUDE_PROJECT_DIR/scripts/wiki.pl\" hook-end",
+            "timeout": 30,
+            "statusMessage": "Closing the library session page"
+          }
+        ]
+      }
+    ]
+  }
+}

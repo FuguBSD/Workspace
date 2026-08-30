@@ -1,0 +1,24 @@
+#!/bin/sh
+# The org pack of FuguBSD/Tooling owns this file. Do not edit a
+# synced copy. Edit the canonical copy in FuguBSD/Tooling.
+#
+# Cross-platform file downloader
+# Usage: ftp output_file url
+
+OS=$(uname)
+
+case "$OS" in
+	OpenBSD)
+		ftp -o "$1" "$2"
+		;;
+	Linux)
+		wget -O "$1" "$2"
+		;;
+	Darwin)
+		curl -L -o "$1" "$2"
+		;;
+	*)
+		echo "ERROR: Unknown OS: $OS" >&2
+		exit 1
+		;;
+esac
