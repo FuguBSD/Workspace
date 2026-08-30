@@ -164,8 +164,9 @@ observer. The procedure lives in the skill, not in the context of the observer.
 - **LIB-SKILLS-2** — A skill must use an absolute path.
 - **LIB-SKILLS-3** — A skill must state which clone and which project it read.
 - **LIB-SKILLS-4** — A skill must export the project `.env` into the child
-  environment. The `env` block of the checkout shadows each project key (D-05),
-  so a bare command bills the wrong Scaleway Project.
+  environment, on the command line of the verb. No ambient credential exists
+  (D-05), so a bare verb holds no identity, and the export names the project
+  key.
 - **LIB-SKILLS-5** — A step skill must take its name from the pipeline stage,
   never from the verb of one project. No campaign verb set contains the others,
   so a name from one project cramps the other two.

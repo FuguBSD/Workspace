@@ -53,44 +53,28 @@ observer set.
   `Projects`, so each checkout holds its own clone of the library. Without
   `MAIN`, `make clone` must clone `FuguBSD/Wiki` into `Wiki/` when it is absent.
 
-<a id="ws-envsync"></a>
+<a id="ws-profiles"></a>
 
-## Environment sync
+## Credential profiles
 
-`worktree.pl envsync` collects the `.env` files of a checkout into the `env`
-block of `.claude/settings.local.json`. Claude Code injects that block into
-every Bash call, so a bare allow-listed command gets the variables without a
-shell that sources `.env` first (D-05).
+The operator HOME holds one credential profile per Scaleway Project (D-05).
+`~/.config/scw/config.yaml` serves `scw` and the tofu provider. A matching
+section of `~/.aws/credentials` serves the S3 tools. The environment beats a
+profile in every Scaleway tool, so an ambient credential silently replaces a
+named profile. The per-project `.env` files are the CI-parity copies, and the
+stage skills read them.
 
-- **WS-ENVSYNC-1** — Envsync must run in the current directory, and it must
-  write only inside it. Without a `.git` entry there, envsync must stop and
-  change nothing.
-- **WS-ENVSYNC-2** — Envsync must find each regular `.env` file under the
-  current directory, at any depth. It must prune each `.git`, each
-  `.claude/worktrees`, and each `explore` scratch directory, at any depth, and
-  it must skip symlinks.
-- **WS-ENVSYNC-3** — A line that matches `^([A-Za-z_][A-Za-z0-9_]*)=(.*)$` sets
-  one pair, after removal of a trailing carriage return. The value stays
-  verbatim, with no quote processing. A blank line and a `#` comment do not
-  match.
-- **WS-ENVSYNC-4** — The merge must sort the files by depth, shallowest first,
-  then by path. The first file that states a key sets the key.
-- **WS-ENVSYNC-5** — When a later file states a key that a file before it set,
-  envsync must warn with the file path and the key names, and continue. A
-  warning or a log names files and key names, never values.
-- **WS-ENVSYNC-6** — Envsync owns the whole `env` object of
-  `.claude/settings.local.json`, and it must keep each other top-level key. An
-  empty merge result removes the `env` object.
-- **WS-ENVSYNC-7** — The write must be canonical and atomic: sorted keys, a temp
-  file with mode 0600, then a rename. A re-run with unchanged `.env` files must
-  produce byte-identical output.
-- **WS-ENVSYNC-8** — When the merge yields no key and no settings file exists,
-  envsync must change nothing. When the settings file does not parse as a JSON
-  object, envsync must stop with an error and change nothing.
-- **WS-ENVSYNC-9** — The bootstrap make target must run envsync after its clone
-  step.
-- **WS-ENVSYNC-10** — Each `.env` file must decode as UTF-8. A file that does
-  not decode must stop envsync, and the error must name the file, never a value.
+- **WS-PROFILES-1** — A profile must carry the short name of its Scaleway
+  Project, for example `fugustx`.
+- **WS-PROFILES-2** — A file must not set an active or a default profile. A
+  command must name its identity: `--profile`, `SCW_PROFILE`, `AWS_PROFILE`, or
+  one project `.env` export on its own command line.
+- **WS-PROFILES-3** — A checkout settings file must not hold a credential, and a
+  workspace tool must not write one there.
+- **WS-PROFILES-4** — A command that reaches Scaleway must run without ambient
+  `SCW_*` and `AWS_*` variables, except the variables it sets itself.
+- **WS-PROFILES-5** — Only the operator makes or rotates a profile, and a
+  rotation must update both HOME files. The README holds the procedure.
 
 <a id="ws-worktree"></a>
 

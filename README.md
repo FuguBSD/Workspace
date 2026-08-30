@@ -36,9 +36,7 @@ Git worktrees live under `.claude/worktrees/` (gitignored). The `WorktreeCreate`
 and `WorktreeRemove` hooks in `.claude/settings.json` fully replace the built-in
 worktree handling of Claude Code. In a fresh worktree, create runs
 `make bootstrap MAIN=<main checkout>`, and the `clone` subcommand materializes
-the gitignored paths locally, with no network and no `gh`. The bootstrap then
-runs `envsync`, which fills the `env` block of `.claude/settings.local.json`
-from the `.env` files.
+the gitignored paths locally, with no network and no `gh`.
 
 No hook removes a worktree (D-06). A session captures its work in the clones
 inside its worktree, so an automatic removal at a failed session destroys that
@@ -93,6 +91,16 @@ Project inside it. The naming standard lives in the Repositories specification
 (Repositories SET-NAMING). The shared infrastructure rules live in
 [infra/CLAUDE.md](infra/CLAUDE.md), and the canonical infrastructure document is
 `Projects/FuguTTX/spec/infrastructure.md`.
+
+The operator HOME holds one credential profile for each project key, per
+[WS-PROFILES](spec/workspace.md#ws-profiles). The profiles today are `fugubsd`,
+`fugustx`, `fuguctx`, and `fuguttx`. Each lives in `~/.config/scw/config.yaml`,
+with a matching `~/.aws/credentials` section for the S3 tools. No profile is
+active by default. Name the identity on each command: `scw --profile fugustx`,
+`SCW_PROFILE=fugustx`, or `AWS_PROFILE=fugustx`. Rotate a key with
+`scw config set --profile <name> access-key=<key> secret-key=<secret>`. Update
+the matching `~/.aws/credentials` section in the same change. The specification
+states the environment rule.
 
 ## Commit scopes
 
