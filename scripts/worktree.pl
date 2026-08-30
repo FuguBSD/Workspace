@@ -5,7 +5,6 @@
 #     worktree.pl [-C <main-checkout>] remove [--force] <name>
 #     worktree.pl [-C <main-checkout>] list
 #     worktree.pl [-C <main-checkout>] clone <path> [<path>...]
-#     worktree.pl envsync
 #
 # The command "create" makes the worktree at
 # <main>/.claude/worktrees/<name>, on a new branch <name> that starts
@@ -46,21 +45,12 @@
 # Destinations that exist do not change. Thus a second run repairs an
 # incomplete bootstrap and keeps local changes.
 #
-# The command "envsync" merges each .env file under the current
-# directory into the env object of .claude/settings.local.json, per
-# spec WS-ENVSYNC and decision D-05. Claude Code injects that object
-# into every Bash call. Envsync runs in a checkout root: it stops
-# without a .git entry in the current directory. The file list sorts
-# by depth, shallowest first, then by path, and the first file that
-# states a key sets it.
-# A later statement of a set key gets a warning that names the file
-# and the keys, never the values. Envsync owns the whole env object,
-# keeps each other top-level key, and writes canonical sorted output
-# through a temp file with mode 0600. A settings file that does not
-# parse stops the program before any change.
+# No command writes a credential into a settings file: the HOME
+# profiles hold the per-project credentials, per spec WS-PROFILES and
+# decision D-05. Clone copies an .env file verbatim, as a file.
 #
 # Create and remove only make changes in <main>/.claude/worktrees/.
-# Clone and envsync only write in the current directory.
+# Clone only writes in the current directory.
 # Exit codes: 0 = success, 2 = usage error, other values = failure.
 #
 # The commands are safe in the failure conditions that follow. Agents
@@ -95,18 +85,14 @@ use strict;
 use warnings;
 
 use Cwd qw(abs_path);
-use Encode ();
-use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
 use File::Basename qw(basename dirname);
 use File::Copy qw(copy);
 use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
-use JSON::PP ();
 use POSIX qw(_exit);
 
 my $prog = basename($0);
 my $WORKTREES = '.claude/worktrees';
-my $SETTINGS = '.claude/settings.local.json';
 
 # The pid of the child for which run() waits. A signal handler can
 # stop this child and its process group before the cleanup starts. If
@@ -135,15 +121,6 @@ sub main {
         $c_given = 1;
     }
     my $command = shift @ARGV // usage();
-
-    # Envsync runs in the current directory and does not read the
-    # main checkout, so it takes no -C. Its own checkout guard is in
-    # cmd_envsync.
-    if ($command eq 'envsync') {
-        usage() if @ARGV || $c_given;
-        cmd_envsync();
-        return;
-    }
 
     my $root = abs_path($dir);
     die "$prog: not the main checkout (no .git directory): $dir\n"
@@ -517,145 +494,6 @@ sub copy_file {
     print "copied $src -> $dst\n";
 }
 
-# Merge each .env under the current directory into the env object of
-# .claude/settings.local.json (WS-ENVSYNC). The first file that
-# states a key sets it; env_files() puts the shallowest file first.
-# A later statement of a set key gets one warning for each file, with
-# the file path and the key names, never the values.
-sub cmd_envsync {
-    # The guard against a run in a wrong directory, for example a
-    # home directory: the walk below visits the full tree. The
-    # explicit exit keeps code 2 for usage errors; a die after a
-    # failed stat exits with the errno, which is also 2.
-    unless (-e '.git') {
-        warn "$prog: not a checkout root (no .git here)\n";
-        exit 1;
-    }
-
-    my @files = env_files();
-    my (%env, %owner);
-    for my $file (@files) {
-        my %shadowed;
-        open(my $fh, '<:raw', $file) or die "$prog: read $file: $!\n";
-        my $bytes = do { local $/; <$fh> };
-        close $fh;
-        # The settings file is UTF-8, so each value must decode. A
-        # bad byte stops the program, and the error names the file
-        # only (WS-ENVSYNC-10). An encoding layer instead rewrites
-        # the value and warns with it.
-        my $text =
-            eval { Encode::decode('UTF-8', $bytes, Encode::FB_CROAK) };
-        die "$prog: $file is not valid UTF-8\n" unless defined $text;
-        for my $line (split /\n/, $text) {
-            $line =~ s/\r\z//;
-            next unless $line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
-            if (exists $env{$1}) {
-                # A repeat inside the file that set the key is not a
-                # shadow (WS-ENVSYNC-5): the first statement wins.
-                $shadowed{$1} = 1 unless $owner{$1} eq $file;
-                next;
-            }
-            $env{$1} = $2;
-            $owner{$1} = $file;
-        }
-        warn "$prog: $file: shadowed keys: @{[sort keys %shadowed]}\n"
-            if %shadowed;
-    }
-
-    # A merge with no key must not make a new settings file
-    # (WS-ENVSYNC-8). With a settings file, the write below removes a
-    # stale env object.
-    if (!%env && !-e $SETTINGS) {
-        print "no keys and no $SETTINGS, nothing to do\n";
-        return;
-    }
-
-    write_settings(\%env);
-    print "synced $SETTINGS: " . scalar(keys %env) . " key(s) from "
-        . scalar(@files) . " file(s)\n";
-}
-
-# The regular .env files under the current directory, at any depth,
-# sorted by depth, shallowest first, then by path. The walk prunes
-# each .git, each .claude/worktrees, and each explore scratch
-# directory, and it skips symlinks (WS-ENVSYNC-2).
-sub env_files {
-    my @files;
-    find({
-        no_chdir => 1,
-        wanted => sub {
-            my $name = $File::Find::name;
-            my $base = basename($name);
-            if ($base eq '.git'
-                || $base eq 'explore'
-                || $name =~ m{(?:^|/)\.claude/worktrees\z}) {
-                $File::Find::prune = 1;
-                return;
-            }
-            return unless $base eq '.env' && !-l $name && -f $name;
-            $name =~ s{^\./}{};
-            push @files, $name;
-        },
-    }, '.');
-    return sort {
-        ($a =~ tr{/}{}) <=> ($b =~ tr{/}{}) || $a cmp $b
-    } @files;
-}
-
-# Replace the env object of the settings file, and keep each other
-# top-level key. An empty merge removes the env object. The write is
-# canonical and atomic: sorted keys, a temp file with mode 0600, then
-# a rename. Thus a re-run with unchanged .env files gives a
-# byte-identical file. A settings file that does not parse as a JSON
-# object stops the program before any change.
-sub write_settings {
-    my ($env) = @_;
-
-    # The settings file is UTF-8: decode the bytes on read, and
-    # encode the characters on write.
-    my $data = {};
-    if (-e $SETTINGS) {
-        open(my $fh, '<:raw', $SETTINGS)
-            or die "$prog: read $SETTINGS: $!\n";
-        my $text = do { local $/; <$fh> };
-        close $fh;
-        $data = eval { JSON::PP->new->utf8->decode($text) };
-        die "$prog: $SETTINGS does not parse, fix it by hand\n"
-            unless defined $data;
-        die "$prog: $SETTINGS is not a JSON object\n"
-            unless ref $data eq 'HASH';
-    }
-    if (%$env) { $data->{env} = $env }
-    else { delete $data->{env} }
-
-    # Two-space indent, sorted keys, and a space after the colon:
-    # one stable format, so a re-run gives byte-identical output.
-    # The org .gitignore hides the file from git and from the
-    # prettier format gate.
-    my $text = JSON::PP->new->utf8->canonical->indent->indent_length(2)
-        ->space_after->encode($data);
-    $text .= "\n" unless $text =~ /\n\z/;
-
-    my $parent = dirname($SETTINGS);
-    make_path($parent) unless -d $parent;
-    my $tmp = "$SETTINGS.tmp$$";
-    sysopen(my $out, $tmp, O_WRONLY | O_CREAT | O_EXCL, 0600)
-        or die "$prog: open $tmp: $!\n";
-    # The mode argument of sysopen goes through the umask; the chmod
-    # makes the mode 0600 in every case.
-    chmod 0600, $tmp;
-    unless (print {$out} $text and close $out) {
-        my $err = $!;
-        unlink $tmp;
-        die "$prog: write $tmp: $err\n";
-    }
-    rename($tmp, $SETTINGS) or do {
-        my $err = $!;
-        unlink $tmp;
-        die "$prog: rename $tmp: $err\n";
-    };
-}
-
 # Remove a branch if it exists. Make no report about, and no change
 # to: a branch that is gone, the branch main, and the branch that the
 # main checkout has checked out. If a parallel remove removes the
@@ -731,8 +569,7 @@ sub usage_text {
     return "usage: $prog [-C <main-checkout>] create <name>\n"
         . "       $prog [-C <main-checkout>] remove [--force] <name>\n"
         . "       $prog [-C <main-checkout>] list\n"
-        . "       $prog [-C <main-checkout>] clone <path> [<path>...]\n"
-        . "       $prog envsync\n";
+        . "       $prog [-C <main-checkout>] clone <path> [<path>...]\n";
 }
 
 sub usage {

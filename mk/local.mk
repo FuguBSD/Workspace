@@ -14,9 +14,8 @@ REPOS	= gh repo list $(ORG) --limit 1000 --json name --jq '.[].name'
 # worktree.pl create runs `make bootstrap MAIN=<main checkout>`, and
 # the clone subcommand materializes the gitignored paths locally from
 # there (no network). Without MAIN this is the main checkout: clone
-# the org and the library. After the clone step, envsync merges the
-# .env files into the env block of .claude/settings.local.json
-# (WS-ENVSYNC-9).
+# the org and the library. Credentials live in the HOME profiles
+# (WS-PROFILES), so bootstrap writes no settings file.
 #
 # Wiki goes to clone beside .env and Projects (WS-BOOTSTRAP-5). Each
 # checkout gets its own clone of the library, so two parallel sessions
@@ -27,7 +26,6 @@ bootstrap:
 	else \
 		$(MAKE) clone; \
 	fi
-	@perl scripts/worktree.pl envsync
 
 clone:
 	@mkdir -p $(DIR)

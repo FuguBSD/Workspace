@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 # ex:ts=8 sw=4:
-# Tests for the remove refusal and the listing of
-# scripts/worktree.pl (WS-WORKTREE-6, WS-WORKTREE-7).
+# Tests for the remove refusal, the listing, and the settings guard
+# of scripts/worktree.pl (WS-WORKTREE-6, WS-WORKTREE-7,
+# WS-PROFILES-3).
 #
 # D-06 stops every automatic removal, so remove must refuse a
 # worktree that holds work at risk. Each test makes a temp repository
@@ -56,6 +57,9 @@ sub _repo ($name)
 	_git( 'init', '--quiet', '-b', 'main', $dir );
 	_git( '-C', $dir, 'config', 'user.email', 'a@b' );
 	_git( '-C', $dir, 'config', 'user.name',  'a' );
+
+	# The test must not depend on the operator signing agent.
+	_git( '-C', $dir, 'config', 'commit.gpgsign', 'false' );
 	_write( "$dir/.gitignore", "Wiki/\n" );
 	_write( "$dir/f.txt",      "x\n" );
 	_git( '-C', $dir, 'add', '-A' );
@@ -65,6 +69,28 @@ sub _repo ($name)
 
 	return ( $dir, "$dir/.claude/worktrees/$name" );
 }
+
+subtest 'a bootstrap writes no settings file' => sub {
+
+	# WS-PROFILES-3: a checkout settings file must not hold a
+	# credential, so a workspace tool must not write one.
+	my ($main) = _repo('p3');
+	_write( "$main/.env", "SCW_ACCESS_KEY=SCWFAKE0000000000\n" );
+	my $dest = tempdir( CLEANUP => 1 );
+	my $out  = qx(cd "$dest" && "$^X" "$script" -C "$main" clone .env 2>&1);
+	is( $? >> 8, 0, 'clone exits 0' ) or diag $out;
+	ok( -f "$dest/.env", 'the .env copy arrives' );
+	ok( !-e "$dest/.claude/settings.local.json",
+		'no settings file appears' );
+
+	# The bootstrap recipe must hold no settings write, so a
+	# settings step cannot return unnoticed.
+	open my $mk, '<', "$RealBin/../../mk/local.mk" or die $!;
+	my $fragment = do { local $/; <$mk> };
+	close $mk;
+	unlike( $fragment, qr/envsync|settings\.local/,
+		'the make fragment holds no settings step' );
+};
 
 subtest 'a clean worktree is removed' => sub {
 	my ( $root, $wt ) = _repo('clean');
