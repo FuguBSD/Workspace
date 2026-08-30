@@ -1,0 +1,50 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # make check runs the Markdown format gate, and prettier runs
+      # through bunx.
+      - name: Setup bun
+        uses: FuguBSD/Tooling/actions/setup-bun@main
+
+      # The gitleaks gate scans the full git history, so the
+      # checkout above stays at fetch-depth 0 (WFL-GITLEAKS-2).
+      - name: Setup gitleaks
+        uses: FuguBSD/Tooling/actions/setup-gitleaks@main
+
+      - name: Check
+        run: make check
+
+      - name: Drift gate
+        if: github.event_name == 'pull_request'
+        run: scripts/spec-check --drift "origin/${{ github.base_ref }}"
+
+  sync:
+    name: Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout FuguBSD/Tooling
+        uses: actions/checkout@v4
+        with:
+          repository: FuguBSD/Tooling
+          path: tooling
+
+      # The synced copies must match FuguBSD/Tooling exactly.
+      - name: Verify the synced copies
+        run: ./tooling/scripts/sync --check

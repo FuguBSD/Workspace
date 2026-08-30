@@ -15,10 +15,15 @@ admitted claim. A project ledger holds one delivered batch for each campaign
 
 - **LIB-LIBRARY-1** — The library must be the git repository `FuguBSD/Wiki`,
   cloned at `Wiki/` in each checkout, a sibling of `Projects/` (D-07).
-- **LIB-LIBRARY-2** — The library must consume the `org` pack of
-  FuguBSD/Tooling, so CI runs `ste-lint` and `gitleaks` on each push.
-- **LIB-LIBRARY-3** — A CI failure must report only. It must not block a push,
-  because capture stays cheap and the gate stays advisory.
+- **LIB-LIBRARY-2** — CI must run `ste-lint` and `gitleaks` on each push. The
+  library must not consume a tooling pack: it holds prose pages only, and it has
+  no specification, so `spec-check` has nothing to read. CI must check out
+  FuguBSD/Tooling and run the canonical scripts, so no synced copy drifts here.
+- **LIB-LIBRARY-3** — A CI failure must report only. No ruleset must make a
+  check required, so a capture always reaches the branch. Capture stays cheap,
+  and the gate stays advisory.
+- **LIB-LIBRARY-5** — No format gate must run on a page. `wiki.pl` appends raw
+  text at capture time, so a reflow gate would fail on every observation.
 - **LIB-LIBRARY-4** — A ruleset must forbid a force push, so the library stays
   append-only by rule. A ruleset needs a public repository on the Free plan of
   the org (Repositories SET-RULESETS-3).
