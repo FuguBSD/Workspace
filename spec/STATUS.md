@@ -20,25 +20,25 @@ phase applies.
 
 ## Units
 
-| Unit                                      | State   | Done by | Note                                                                                                              |
-| ----------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| [WS-LAYOUT](workspace.md#ws-layout)       | partial | —       | [.gitignore](../.gitignore), [.toolingrc](../.toolingrc). Absent: the remote and the CI of WS-LAYOUT-1.           |
-| [WS-CLONE](workspace.md#ws-clone)         | done    | —       | [local.mk](../mk/local.mk)                                                                                        |
-| [WS-BOOTSTRAP](workspace.md#ws-bootstrap) | done    | —       | [local.mk](../mk/local.mk), [worktree.pl](../scripts/worktree.pl)                                                 |
-| [WS-ENVSYNC](workspace.md#ws-envsync)     | done    | —       | [worktree.pl](../scripts/worktree.pl), [envsync.t](../t/ci/envsync.t)                                             |
-| [WS-WORKTREE](workspace.md#ws-worktree)   | done    | —       | [worktree.pl](../scripts/worktree.pl), [worktree.t](../t/ci/worktree.t)                                           |
-| [WS-HOOKS](workspace.md#ws-hooks)         | done    | —       | [settings.json](../.claude/settings.json)                                                                         |
-| [LIB-LIBRARY](library.md#lib-library)     | open    | —       | The repository `FuguBSD/Wiki` is not created yet.                                                                 |
-| [LIB-PAGES](library.md#lib-pages)         | done    | —       | [wiki.pl](../scripts/wiki.pl), [wiki.t](../t/ci/wiki.t)                                                           |
-| [LIB-CONTENT](library.md#lib-content)     | n-a     | —       | A prose rule for an author. The `gitleaks` gate of LIB-LIBRARY-2 catches a key pattern only.                      |
-| [LIB-ENTRY](library.md#lib-entry)         | partial | —       | [consolidate](../.claude/skills/consolidate/SKILL.md). Absent: LIB-ENTRY-5, the migration of the FuguSTX entries. |
-| [LIB-WIKI](library.md#lib-wiki)           | done    | —       | [wiki.pl](../scripts/wiki.pl), [wiki.t](../t/ci/wiki.t)                                                           |
-| [LIB-HOOKS](library.md#lib-hooks)         | done    | —       | [settings.json](../.claude/settings.json)                                                                         |
-| [LIB-OBSERVER](library.md#lib-observer)   | done    | —       | [observer.md](../.claude/agents/observer.md)                                                                      |
-| [LIB-VERIFY](library.md#lib-verify)       | done    | —       | [verifier.md](../.claude/agents/verifier.md), [verify](../.claude/skills/verify/SKILL.md)                         |
-| [LIB-SKILLS](library.md#lib-skills)       | done    | —       | [.claude/skills](../.claude/skills)                                                                               |
-| [LIB-RUNBOOK](library.md#lib-runbook)     | partial | —       | The three runbooks exist. Absent: LIB-RUNBOOK-3, the runbook gate that each project owns.                         |
-| [LIB-CANDIDATE](library.md#lib-candidate) | done    | —       | [local.mk](../mk/local.mk)                                                                                        |
+| Unit                                      | State   | Done by | Note                                                                                                                                                                                       |
+| ----------------------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [WS-LAYOUT](workspace.md#ws-layout)       | partial | —       | [.gitignore](../.gitignore), [.toolingrc](../.toolingrc). The remote `FuguBSD/Workspace` is public. Absent: the CI of WS-LAYOUT-1, which needs a `check.yml` workflow.                     |
+| [WS-CLONE](workspace.md#ws-clone)         | done    | —       | [local.mk](../mk/local.mk)                                                                                                                                                                 |
+| [WS-BOOTSTRAP](workspace.md#ws-bootstrap) | done    | —       | [local.mk](../mk/local.mk), [worktree.pl](../scripts/worktree.pl)                                                                                                                          |
+| [WS-ENVSYNC](workspace.md#ws-envsync)     | done    | —       | [worktree.pl](../scripts/worktree.pl), [envsync.t](../t/ci/envsync.t)                                                                                                                      |
+| [WS-WORKTREE](workspace.md#ws-worktree)   | done    | —       | [worktree.pl](../scripts/worktree.pl), [worktree.t](../t/ci/worktree.t)                                                                                                                    |
+| [WS-HOOKS](workspace.md#ws-hooks)         | done    | —       | [settings.json](../.claude/settings.json)                                                                                                                                                  |
+| [LIB-LIBRARY](library.md#lib-library)     | partial | —       | `FuguBSD/Wiki` is public, and a probe confirms the ruleset rejects a force push (LIB-LIBRARY-4). Absent: LIB-LIBRARY-2 and LIB-LIBRARY-3, the org pack and the advisory CI of the library. |
+| [LIB-PAGES](library.md#lib-pages)         | done    | —       | [wiki.pl](../scripts/wiki.pl), [wiki.t](../t/ci/wiki.t)                                                                                                                                    |
+| [LIB-CONTENT](library.md#lib-content)     | n-a     | —       | A prose rule for an author. The `gitleaks` gate of LIB-LIBRARY-2 catches a key pattern only.                                                                                               |
+| [LIB-ENTRY](library.md#lib-entry)         | partial | —       | [consolidate](../.claude/skills/consolidate/SKILL.md). Absent: LIB-ENTRY-5, the migration of the FuguSTX entries.                                                                          |
+| [LIB-WIKI](library.md#lib-wiki)           | done    | —       | [wiki.pl](../scripts/wiki.pl), [wiki.t](../t/ci/wiki.t)                                                                                                                                    |
+| [LIB-HOOKS](library.md#lib-hooks)         | done    | —       | [settings.json](../.claude/settings.json)                                                                                                                                                  |
+| [LIB-OBSERVER](library.md#lib-observer)   | done    | —       | [observer.md](../.claude/agents/observer.md)                                                                                                                                               |
+| [LIB-VERIFY](library.md#lib-verify)       | done    | —       | [verifier.md](../.claude/agents/verifier.md), [verify](../.claude/skills/verify/SKILL.md)                                                                                                  |
+| [LIB-SKILLS](library.md#lib-skills)       | done    | —       | [.claude/skills](../.claude/skills)                                                                                                                                                        |
+| [LIB-RUNBOOK](library.md#lib-runbook)     | partial | —       | The three runbooks exist. Absent: LIB-RUNBOOK-3, the runbook gate that each project owns.                                                                                                  |
+| [LIB-CANDIDATE](library.md#lib-candidate) | done    | —       | [local.mk](../mk/local.mk)                                                                                                                                                                 |
 
 ## Update protocol
 
