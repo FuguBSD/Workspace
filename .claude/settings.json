@@ -17,13 +17,13 @@
   "autoMode": {
     "environment": [
       "$defaults",
-      "One operator works in this personal FuguBSD workspace. No production traffic and no third-party data depend on it. The workspace repository has no remote and no CI.",
+      "One operator works in this personal FuguBSD workspace. No production traffic and no third-party data depend on it. The workspace and the project clones push to public FuguBSD repositories, and CI runs the check gate on each push.",
       "Each project clone under Projects/ declares its Scaleway infrastructure as OpenTofu stacks. tofu apply executes a saved plan, and the operator approves the diff in chat first.",
-      "Budget alerts at EUR 300 per month, a price forecast gate, and an idle watchdog cap the Scaleway spend.",
+      "Per-project budget alerts, a price forecast gate, and an idle watchdog cap the Scaleway spend.",
       "gh workflow run dispatches the campaign workflows of the operator's own repositories. The workflows enforce the same spend gates, a lease expiry, and a teardown watchdog.",
       "scw iam api-key create and delete perform the CI credential delegation that the project RUNBOOK documents. Each minted key has a project scope and an expiry date.",
       "ssh-keygen mints the campaign SSH keypairs, and gh secret set stores minted credentials for CI. Secret values go to gitignored files under explore/, never to command output.",
-      "Shell state does not persist between tool calls. One command line therefore sources .env, exports the keys, and runs one tool."
+      "Shell state does not persist between tool calls. A Scaleway command names a HOME credential profile, or it sources a project .env and runs the tool on the same command line."
     ]
   },
   "hooks": {
