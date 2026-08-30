@@ -68,8 +68,10 @@ sub _origin ($dir)
 	_git( 'init', '--quiet', '--bare', $origin );
 	_git( '-C', $origin, 'symbolic-ref', 'HEAD', 'refs/heads/main' );
 	_git( 'clone', '--quiet', $origin, "$dir/seed" );
+	# The test must not depend on the operator signing agent.
 	_git( '-C', "$dir/seed", '-c', 'user.email=a@b', '-c',
-		'user.name=a', 'commit', '--quiet', '--allow-empty',
+		'user.name=a', '-c', 'commit.gpgsign=false',
+		'commit', '--quiet', '--allow-empty',
 		'-m', 'Initial commit' );
 	_git( '-C', "$dir/seed", 'branch', '-M', 'main' );
 	_git( '-C', "$dir/seed", 'push', '--quiet', 'origin', 'main' );
@@ -90,6 +92,9 @@ sub _checkout ( $dir, $name, $origin )
 	_git( 'clone', '--quiet', $origin, "$co/Wiki" );
 	_git( '-C', "$co/Wiki", 'config', 'user.email', 'a@b' );
 	_git( '-C', "$co/Wiki", 'config', 'user.name', 'a' );
+
+	# The test must not depend on the operator signing agent.
+	_git( '-C', "$co/Wiki", 'config', 'commit.gpgsign', 'false' );
 
 	return $co;
 }
@@ -246,8 +251,8 @@ subtest 'candidates reports the undelivered ones with an age' => sub {
 
 - 2026-08-01 the observer must not edit code
 - 2026-08-20 the verifier reads the log. Delivered: FuguTTX AGT-OBS-3
-- 2026-08-21 a skill must export the project env, because the checkout
-  shadows every project key. Delivered: FuguTTX AGT-SKILL-4
+- 2026-08-21 a page must not hold a bucket suffix, because the library
+  is public. Delivered: FuguTTX AGT-SKILL-4
 END
 	);
 
@@ -257,7 +262,7 @@ END
 		'an undelivered candidate appears' );
 	unlike( $out, qr/the verifier reads the log/,
 		'a delivered candidate does not appear' );
-	unlike( $out, qr/a skill must export the project env/,
+	unlike( $out, qr/a page must not hold a bucket suffix/,
 		'a delivered candidate that wraps does not appear' );
 	like( $out, qr/^\s*\d+ d\s+2026-08-01/m, 'the age is in days' );
 
