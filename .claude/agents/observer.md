@@ -43,11 +43,11 @@ every dispatch carries them (LIB-SKILLS).
   a project clone can be stale and `make check` at the workspace root proves
   nothing about a project. So state which clone and which project each step
   read.
-- **The workspace credentials shadow the project credentials.** The `env` block
-  of the checkout sets `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`,
-  `SCW_DEFAULT_ORGANIZATION_ID` and `SCW_DEFAULT_PROJECT_ID` (D-05). A command
-  that does not export the project `.env` bills the wrong Scaleway Project. So
-  every command that reaches Scaleway exports the project `.env` first.
+- **A command must name its identity.** No ambient credential exists (D-05), and
+  no profile is active by default. A command that reaches Scaleway names the
+  project profile: `--profile`, `SCW_PROFILE`, or `AWS_PROFILE`. The stage
+  skills export the project `.env` on one command line, which is the equal form.
+  A credential export stays on that one line, never in a shared shell.
 
 ## The content rule
 

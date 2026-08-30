@@ -32,8 +32,8 @@ This skill takes the absolute project path. Without it, stop and ask.
    set -a; . <project path>/.env; set +a; make -C <project path> <verb>
    ```
 
-   The export is not optional. The `env` block of the checkout shadows every
-   project key (D-05).
+   The export is not optional. No ambient credential exists, so a bare verb
+   holds no identity (D-05).
 
 ## The report
 

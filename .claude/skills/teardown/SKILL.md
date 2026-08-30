@@ -31,8 +31,8 @@ This skill takes the absolute project path. Without it, stop and ask.
    set -a; . <project path>/.env; set +a; make -C <project path> infra-<verb>
    ```
 
-   The export matters most here. A teardown against the wrong Scaleway Project
-   destroys the wrong resources (D-05).
+   The export matters most here. A teardown with a wrong identity destroys the
+   wrong resources, and no ambient credential exists to fall back on (D-05).
 
 4. Confirm the release. List the resources that stay, and state why each one
    stays. A persistent resource is normal; a running instance is not.
