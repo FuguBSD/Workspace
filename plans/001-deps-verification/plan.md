@@ -47,6 +47,7 @@ without approval.
 | 8   | `deps/KEYS.txt` declares each signify public key, as the key body or as a URL and sha256 pair. `deps/KEYS.local.txt` holds a consumer key.                             |
 | 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.                                                        |
 | 10  | The keys publish under `https://www.fugubsd.org/keys/`. FuguWeb generates the key directory, the Apache `KEYS` file, and the well-known URLs from a description block. |
+| 11  | The generic parts of the key directory live in Fugu modules. FuguWeb holds the site wiring only.                                                                       |
 
 Decision 6 puts the private key in CI. The signature then proves that the asset
 store holds the bytes that CI built. It does not prove that CI is honest. The
@@ -171,7 +172,13 @@ after the OpenBSD release, for example `openbsd-78-base.pub`, and resolves it
 through an explicit directory, then `/etc/signify`, then a share tree. It passes
 one key to the module.
 
-`Fugu::Signify` holds no private key, and it cannot sign.
+`Fugu::Signify` holds no private key, and it cannot sign. Its manifest parser is
+a private method, and the module has no writer for the manifest form. Fugu holds
+no OpenPGP module and no base32 module.
+
+FuguWeb depends on Fugu and on core Perl only, and the publish workflow installs
+the two release tarballs together. A Fugu module is therefore available to every
+site build, and to FuguVM and FuguTTX as well.
 
 ### A signify public key is one line
 
@@ -436,22 +443,40 @@ and the serial and the purpose come from the name.
 The status is `current`, `next` or `retired`. Each purpose holds one `current`
 key and at most one `next` key.
 
+The generic parts live in Fugu, per decision 11, so a site build, FuguVM, and a
+future tool share one tested implementation. FuguWeb reads the description
+blocks, calls the modules, writes the output tree, and runs the checks. Nothing
+else lives in FuguWeb.
+
+- A key directory module holds the name pattern, the type from the extension,
+  the status vocabulary, the order of a key set, and the text of `KEYS`, of the
+  index data, and of `security.txt`.
+- An OpenPGP module decodes an armored key to its binary form, computes the v4
+  fingerprint from the public key packet, and computes the Web Key Directory
+  hash with `Digest::SHA` and a z-base-32 encoder.
+- `Fugu::Signify` exposes the manifest parser as a public method, and gains a
+  writer for the `SHA256 (name) = digest` form, so the rotation workflow and the
+  check share one implementation of the manifest.
+
+Each module reads and writes bytes and text. No module runs gpg or signify, so
+the build needs neither command. The bootstrap rule of Tooling does not reach
+these modules, because only the synced scripts must stay core-only.
+
 `fuguweb build` copies each key file, and it copies `SHA256` and `SHA256.sig` as
 they are. It generates `KEYS`, `index.html`, the `openpgpkey` tree, and
-`security.txt` when the block names a contact. The build computes the Web Key
-Directory hash with `Digest::SHA` and a z-base-32 encoder, and it decodes the
-armored key body for the binary form, so the build needs no gpg and no signify.
+`security.txt` when the block names a contact, through the Fugu modules.
 
 `fuguweb check` holds the directory to the design. Each key file has a block,
 and each block has a file. Each name matches the pattern. Each purpose holds one
-`current` key. `SHA256` names every key file with its digest. A signature
-verification is the work of the consumer install, because the site build cannot
-sign.
+`current` key. `SHA256` names every key file with its digest. The declared
+fingerprint of a GPG key equals the computed one. A signature verification is
+the work of the consumer install, because the site build cannot sign.
 
 The site build cannot sign, so `SHA256` and `SHA256.sig` are source files. The
-rotation workflow writes them, and the check verifies the digests. The
-implementation adds a unit to the FuguWeb specification, and the web pack of
-Tooling documents the block.
+rotation workflow writes them with the Fugu manifest writer, and the check
+verifies the digests. The implementation adds a unit to the FuguWeb
+specification for the wiring, and one unit to the Fugu specification for each
+module. The web pack of Tooling documents the block.
 
 ### The rotation procedure
 
@@ -541,18 +566,27 @@ the upstream checksum file that the evidence names, before the commit.
   error path, with the stub `ftp` sibling that the evidence describes.
 - A plan in `Tooling/plans/` lands first, and the implementation deletes it.
 
-### Phase 2 — FuguBSD/FuguWeb
+### Phase 2 — FuguBSD/Fugu, then FuguBSD/FuguWeb
 
-- `.fuguwebrc`: add the `keys` block and the `key` block, per the key directory
-  design.
-- `App::FuguWeb::Site`: copy the key files and the manifest pair, and generate
-  `KEYS`, `index.html`, the `openpgpkey` tree and `security.txt`.
-- `fuguweb check`: hold the directory to the design.
-- `spec/web.md`: add the unit, and set the register row.
-- The tests cover each generated file, each check, and the hash of the Web Key
-  Directory against a known vector.
+Fugu lands first, and FuguWeb builds on its release.
+
+- Fugu: add the key directory module and the OpenPGP module, expose the manifest
+  parser of `Fugu::Signify`, and add the manifest writer. The tests cover the
+  name pattern, each status rule, the armor decoder, the fingerprint and the Web
+  Key Directory hash against known vectors, and both manifest directions. Add
+  the units to the Fugu specification, and release Fugu.
+- FuguWeb, `.fuguwebrc`: add the `keys` block and the `key` block, per the key
+  directory design.
+- FuguWeb, `App::FuguWeb::Site`: copy the key files and the manifest pair, and
+  generate `KEYS`, `index.html`, the `openpgpkey` tree and `security.txt`
+  through the Fugu modules.
+- FuguWeb, `fuguweb check`: hold the directory to the design.
+- FuguWeb, `spec/web.md`: add the unit, and set the register row.
+- The FuguWeb tests cover each generated file and each check, against the Fugu
+  release.
 - Release FuguWeb, because the publish workflow installs the latest release.
-- A plan in `FuguWeb/plans/` lands first, and the implementation deletes it.
+- A plan in `Fugu/plans/` and a plan in `FuguWeb/plans/` land first, and each
+  implementation deletes its plan.
 
 ### Phase 3 — FuguBSD/Website
 
@@ -611,8 +645,9 @@ Phase 1 and Phase 2 wait on nothing. Each starts as soon as this plan merges,
 and the two run in parallel.
 
 Phase 3 waits on Phase 1, because the rotation workflow needs the key file
-format and the `tool` environment. It waits on a FuguWeb release with Phase 2,
-because the publish workflow installs the latest release.
+format and the `tool` environment. It waits on a Fugu release and a FuguWeb
+release with Phase 2, because the publish workflow installs the latest release
+of each.
 
 Phase 4 waits on Phase 1 for each repository. The three repositories with a
 `dist` line also wait on Phase 3, and on one signed Fugu release. Their
