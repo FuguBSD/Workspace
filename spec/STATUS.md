@@ -24,6 +24,7 @@ phase applies.
 | ----------------------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [WS-LAYOUT](workspace.md#ws-layout)       | done    | —       | [.gitignore](../.gitignore), [.toolingrc](../.toolingrc), [check.yml](../.github/workflows/check.yml). The remote `FuguBSD/Workspace` is public.                                                                                                                               |
 | [WS-CLONE](workspace.md#ws-clone)         | done    | —       | [local.mk](../mk/local.mk)                                                                                                                                                                                                                                                     |
+| [WS-DEPS](workspace.md#ws-deps)           | done    | —       | [Linux.txt](../deps/Linux.txt), [org.mk](../mk/org.mk)                                                                                                                                                                                                                         |
 | [WS-BOOTSTRAP](workspace.md#ws-bootstrap) | done    | —       | [local.mk](../mk/local.mk), [worktree.pl](../scripts/worktree.pl)                                                                                                                                                                                                              |
 | [WS-PROFILES](workspace.md#ws-profiles)   | done    | —       | The operator makes the HOME files by hand, per [the README](../README.md). [worktree.pl](../scripts/worktree.pl) writes no settings file, and [worktree.t](../t/ci/worktree.t) proves the clone step writes none and the make fragment holds no settings step (WS-PROFILES-3). |
 | [WS-WORKTREE](workspace.md#ws-worktree)   | done    | —       | [worktree.pl](../scripts/worktree.pl), [worktree.t](../t/ci/worktree.t)                                                                                                                                                                                                        |
@@ -53,10 +54,10 @@ The drift gate maps each document to the code that implements it. Two documents
 share the `scripts`, `mk` and `.claude/settings.json` roots, so each row names
 the paths that its document owns.
 
-| Document     | Roots                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| workspace.md | `scripts/worktree.pl`, `mk`, `.claude/settings.json`, `.gitignore`, `.toolingrc`, `t/ci/worktree.t` |
-| library.md   | `scripts/wiki.pl`, `mk`, `.claude/settings.json`, `.claude/agents`, `.claude/skills`, `t/ci/wiki.t` |
+| Document     | Roots                                                                                                       |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| workspace.md | `scripts/worktree.pl`, `mk`, `.claude/settings.json`, `.gitignore`, `.toolingrc`, `t/ci/worktree.t`, `deps` |
+| library.md   | `scripts/wiki.pl`, `mk`, `.claude/settings.json`, `.claude/agents`, `.claude/skills`, `t/ci/wiki.t`         |
 
 ## Retired IDs
 

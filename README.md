@@ -12,6 +12,7 @@ workspace itself.
 
 ## Commands
 
+    make deps                      # install the external tools of the workspace
     make bootstrap                 # bring this checkout to a working state
     make clone                     # clone every org project that is absent
     make pull                      # fast-forward every clone
@@ -24,11 +25,16 @@ workspace itself.
 
 The project list comes from `gh repo list FuguBSD`, so it reflects the org at
 all times. `gh` is authenticated with admin permissions, and private projects
-are included.
+are included. `make deps` installs `gh` into `~/.local/bin` from the manifest in
+`deps/`. The operator authenticates it once with `gh auth login`.
+
+`make deps` also installs `gitleaks`, the tool of the secret gate. It holds the
+version that the `setup-gitleaks` action of FuguBSD/Tooling pins, so the
+operator gate and the CI gate use one binary.
 
 `make check` runs the Markdown format gate, and prettier runs through bunx. The
-operator installs bun and gitleaks, for example from Homebrew. No deps manifest
-provides them.
+operator installs bun, for example from Homebrew. The manifest does not provide
+it, because the format gate needs `bunx` before a target can run.
 
 ## Worktrees
 
