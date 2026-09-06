@@ -5,7 +5,9 @@ It also expands one architecture word and one operating system word, so a
 release asset with a different spelling needs a hardcoded workaround. This plan
 adds two guarantees. Each downloaded file must match a recorded sha256 digest,
 or a signify signature. Each download URL must resolve through an alias table,
-so no manifest holds a hardcoded platform word.
+so no manifest holds a hardcoded platform word. One install path then serves the
+operator and CI. The `setup-gitleaks` action of Tooling retires, and each check
+workflow installs gitleaks with `make deps`, as the operator does.
 
 The work starts in FuguBSD/Tooling, because the org pack owns `scripts/deps`,
 `scripts/ftp` and `mk/org.mk`. The rollout then reaches every consumer.
@@ -43,6 +45,7 @@ without approval.
 | 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.          |
 | 7   | The rule MK-GITLEAKS-4 of Tooling changes, so a manifest can provide gitleaks.                                           |
 | 8   | `deps/KEYS.txt` declares each signify public key by URL. `deps/KEYS.local.txt` holds a consumer key.                     |
+| 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.          |
 
 Decision 6 puts the private key in CI. The signature then proves that the asset
 store holds the bytes that CI built. It does not prove that CI is honest. The
@@ -113,13 +116,37 @@ only source of trust.
 | tofu     | `tofu_1.10.6_SHA256SUMS`        |
 | scw      | `SHA256SUMS`                    |
 
-### Tooling already pins the gitleaks digest
+### The setup-gitleaks action is the second install path
 
 The `setup-gitleaks` action of Tooling installs
 `gitleaks_8.30.1_linux_x64.tar.gz` and checks it against the sha256 default
 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb`
-(WFL-GITLEAKS-1 of Tooling). The workspace entry in `deps/SHA256.txt` must hold
-the same digest, as WS-DEPS-4 holds the same version. Two pins name one binary.
+(WFL-GITLEAKS-1 of Tooling). That digest seeds the first `deps/SHA256.txt`
+entry. After decision 9 lands, the manifest is the one pin.
+
+These places name the action today. Each one changes or goes.
+
+| Place                                       | Reference                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `Tooling/actions/setup-gitleaks/`           | The action itself.                                                 |
+| `Tooling/perl/t/setup-gitleaks.t`           | The test of WFL-GITLEAKS-1. It skips when the action is gone.      |
+| `Tooling/spec/workflows.md`                 | The unit WFL-GITLEAKS, rules 1 to 3.                               |
+| `Tooling/spec/make.md`                      | MK-GITLEAKS-4 names the action as the CI install.                  |
+| `Tooling/.github/workflows/check.yml`       | The `gitleaks` job runs the action before `make gitleaks`.         |
+| `org/sync/t/ci/workflows.t`                 | Pins the action path in each use. A workflow without a use passes. |
+| Each consumer `.github/workflows/check.yml` | A `Setup gitleaks` step before `make check`.                       |
+| `Workspace/spec/workspace.md`               | WS-DEPS-4 names the action version as the source of the pin.       |
+| `Workspace/README.md`                       | The deps paragraph names the action.                               |
+
+The synced `t/ci/workflows.t` checks the action path only where a workflow uses
+it, so a consumer can drop the step before Tooling deletes the action. The
+reverse order breaks CI: a consumer that still uses a deleted action fails at
+the step.
+
+The action appends `$HOME/.local/bin` to `GITHUB_PATH`. `scripts/deps` installs
+into the same directory and appends nothing. The default PATH of the Ubuntu
+runner holds `/home/runner/.local/bin`, and the implementation confirms this
+before it drops the append.
 
 ### The setup-perl action fixes the environment words
 
@@ -201,7 +228,30 @@ action needs no change, because `make deps` covers `tool`.
 A `tool` entry must not use the signify tier, because that tier needs
 `signify(1)`. A project whose platform lacks the command adds a `tool` entry for
 it, as `tool pkg signify-openbsd` on Linux and `tool pkg signify-osx` on Darwin.
-OpenBSD holds the command in base. The workspace needs the Linux entry.
+OpenBSD holds the command in base. Only a repository with a signify-tier entry
+needs the `tool` entry. The workspace has none today.
+
+### One install path for gitleaks
+
+Each repository names gitleaks in the `tool` environment of each manifest, in
+`deps/Linux.txt` and in `deps/Darwin.txt`, through the digest tier. The `tool`
+environment fits, because gitleaks is a tool of the gates and not a dependency
+of the software, and because every deps chain installs `tool`. The operator then
+installs gitleaks with `make deps`, and the Homebrew install ends.
+
+CI takes the same path. A check job that runs the `setup-perl` action already
+runs `make deps-test`, which chains over `deps`, so gitleaks arrives with the
+CPAN tree. A check job without that action, as in the workspace, adds one step
+that runs `make deps`. The `gitleaks` job of the Tooling check workflow does the
+same. No check workflow uses the `setup-gitleaks` action after its consumer
+change.
+
+The action goes last, after each consumer change, per the evidence. Its deletion
+retires WFL-GITLEAKS-1, and the number is never reused. WFL-GITLEAKS-2 and
+WFL-GITLEAKS-3 stay, because the full checkout rule does not depend on the
+install path. MK-GITLEAKS-4 changes to state that the manifest provides gitleaks
+in the `tool` environment, and that CI installs it with `make deps`. The synced
+`t/ci/workflows.t` drops the action pin.
 
 ### Alias resolution
 
@@ -331,6 +381,11 @@ the upstream checksum file that the evidence names, before the commit.
   release beside the two tarballs.
 - `spec/make.md` and `spec/sync.md`: add the units, and amend MK-VERBS-4 and
   MK-GITLEAKS-4.
+- `deps/Linux.txt` and `deps/SHA256.txt`: add gitleaks in the `tool`
+  environment, with the digest that the action holds today.
+- `.github/workflows/check.yml`: the `gitleaks` job runs `make deps` in place of
+  the action.
+- The action, its test, and WFL-GITLEAKS-1 stay until Phase 4.
 - `perl/t/deps.t`: cover the alias table, both tiers and each error path, with
   the stub `ftp` sibling that the evidence describes.
 - A plan in `Tooling/plans/` lands first, and the implementation deletes it.
@@ -346,24 +401,38 @@ the upstream checksum file that the evidence names, before the commit.
 
 ### Phase 3 — the consumers
 
-Each repository takes the synced files, and then adds its digests. Each
-repository removes the workaround comments that name the old expansion.
+Each repository takes the synced files, adds gitleaks to the `tool` environment
+of each manifest, and adds its digests. Each repository removes the workaround
+comments that name the old expansion. Each check workflow drops the
+`Setup gitleaks` step, and a workflow without the `setup-perl` action adds a
+`make deps` step.
 
-| Repository   | Work                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| Fugu         | sync; no bin entry, so the digest file stays empty                                         |
-| FuguCTX      | sync; digests for scw                                                                      |
-| FuguSTX      | sync; digests for scw and tofu                                                             |
-| FuguTTX      | sync; digests for scw; signify tier for the Fugu dist                                      |
-| FuguVM       | sync; signify tier for the Fugu dist                                                       |
-| FuguWeb      | sync; signify tier for the Fugu dist                                                       |
-| Repositories | sync; digests for scw, gh and tofu; remove the `macOS` workaround                          |
-| Workspace    | sync; `tool pkg signify-openbsd`; digests for gh and gitleaks; remove the `x64` workaround |
+| Repository   | Work beyond the shared steps                                         |
+| ------------ | -------------------------------------------------------------------- |
+| .github      | the check workflow only, if one exists                               |
+| Fugu         | no other bin entry                                                   |
+| FuguCTX      | digests for scw                                                      |
+| FuguSTX      | digests for scw and tofu                                             |
+| FuguTTX      | digests for scw; signify tier for the Fugu dist                      |
+| FuguVM       | signify tier for the Fugu dist                                       |
+| FuguWeb      | signify tier for the Fugu dist                                       |
+| Repositories | digests for scw, gh and tofu; remove the `macOS` workaround          |
+| Website      | the manifest from Phase 2                                            |
+| Workspace    | digests for gh; move gitleaks to `tool`; remove the `x64` workaround |
 
-The Workspace change also extends WS-DEPS, sets the register row, and deletes
-this plan. The gitleaks digest must equal the `setup-gitleaks` default of
-Tooling, and the workspace test proves it against the checkout of Tooling that
-the sync job holds.
+The Workspace change also extends WS-DEPS, rewrites WS-DEPS-4 and the README
+paragraph so neither names the action, sets the register row, and deletes this
+plan.
+
+### Phase 4 — FuguBSD/Tooling, the removal
+
+- `actions/setup-gitleaks/`: delete the action.
+- `perl/t/setup-gitleaks.t`: delete the test.
+- `spec/workflows.md`: retire WFL-GITLEAKS-1, and keep WFL-GITLEAKS-2 and
+  WFL-GITLEAKS-3.
+- `org/sync/t/ci/workflows.t`: drop the action pin, and sync the test to each
+  consumer.
+- `spec/STATUS.md`: set the WFL-GITLEAKS row.
 
 ## Status
 
@@ -381,6 +450,9 @@ format and the `tool` environment.
 Phase 3 waits on Phase 1 for each repository. The three repositories with a
 `dist` line also wait on Phase 2, and on one signed Fugu release. Their
 `make deps` fails until a signature exists, and that failure is the design.
+
+Phase 4 waits on every check workflow of Phase 3. A consumer that still uses the
+action fails at the step when the action is gone.
 
 ### Open questions
 
