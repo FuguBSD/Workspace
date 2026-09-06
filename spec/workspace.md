@@ -33,6 +33,19 @@ observer set.
 - **WS-CLONE-3** — `make pull` fast-forwards each clone, and a failure in one
   clone must not stop the others.
 
+<a id="ws-deps"></a>
+
+## Dependencies
+
+- **WS-DEPS-1** — `deps/<OS>.txt` must name each external tool that the
+  workspace targets need. `make deps` installs the runtime tools from it.
+- **WS-DEPS-2** — The manifest must name `gh`, because WS-CLONE-2 reads the
+  project list with it. The entry must install a pinned release of the GitHub
+  CLI into `~/.local/bin`.
+- **WS-DEPS-3** — The manifest must not name `bun` or `gitleaks`. The operator
+  installs each of these two tools, because `make check` needs them before a
+  target can run.
+
 <a id="ws-bootstrap"></a>
 
 ## Bootstrap
