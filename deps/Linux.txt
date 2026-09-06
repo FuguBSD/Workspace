@@ -1,3 +1,6 @@
 # External dependencies of the workspace. scripts/deps installs each line.
 # The GitHub CLI lists the org projects and clones each absent project.
 runtime bin gh https://github.com/cli/cli/releases/download/v2.97.0/gh_2.97.0_{os}_{arch}.tar.gz gh_2.97.0_{os}_{arch}/bin/gh
+# The secret gate of make check runs gitleaks. The release assets name the
+# x86_64 architecture "x64". Thus the arch placeholder cannot serve this line.
+runtime bin gitleaks https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_{os}_x64.tar.gz gitleaks

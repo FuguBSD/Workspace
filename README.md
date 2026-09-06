@@ -28,10 +28,13 @@ all times. `gh` is authenticated with admin permissions, and private projects
 are included. `make deps` installs `gh` into `~/.local/bin` from the manifest in
 `deps/`. The operator authenticates it once with `gh auth login`.
 
+`make deps` also installs `gitleaks`, the tool of the secret gate. It holds the
+version that the `setup-gitleaks` action of FuguBSD/Tooling pins, so the
+operator gate and the CI gate use one binary.
+
 `make check` runs the Markdown format gate, and prettier runs through bunx. The
-operator installs bun and gitleaks, for example from Homebrew. The manifest does
-not provide these two tools, because `make check` needs them before a target can
-run.
+operator installs bun, for example from Homebrew. The manifest does not provide
+it, because the format gate needs `bunx` before a target can run.
 
 ## Worktrees
 
