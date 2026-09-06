@@ -38,15 +38,25 @@ observer set.
 ## Dependencies
 
 - **WS-DEPS-1** — `deps/<OS>.txt` must name each external tool that the
-  workspace targets need. `make deps` installs the runtime tools from it.
+  workspace targets need. `make deps` installs the `tool` environment and then
+  the `runtime` environment from it.
 - **WS-DEPS-2** — The manifest must name `gh`, because WS-CLONE-2 reads the
   project list with it. The entry must install a pinned release of the GitHub
   CLI into `~/.local/bin`.
 - **WS-DEPS-3** — The manifest must not name `bun`. The operator installs it,
   because the Markdown format gate needs `bunx` before a target can run.
-- **WS-DEPS-4** — The manifest must name `gitleaks`, the tool of the secret
-  gate. The entry must hold the version that the `setup-gitleaks` action of
-  FuguBSD/Tooling pins, so the operator gate and the CI gate use one binary.
+- **WS-DEPS-4** — The manifest must name `gitleaks` in the `tool` environment.
+- **WS-DEPS-5** — CI must install gitleaks with `make deps`, so one pin serves
+  the operator gate and the CI gate.
+- **WS-DEPS-6** — `make deps` must verify each download before it installs the
+  file. A download that fails its check must stop the install.
+- **WS-DEPS-7** — `deps/SHA256.txt` must record the sha256 digest of each file
+  that an entry downloads by version, for each platform that the workspace
+  targets. The org pack of FuguBSD/Tooling defines the file format.
+- **WS-DEPS-8** — A download of the latest release must not appear in
+  `deps/SHA256.txt`, because its bytes change with each release.
+- **WS-DEPS-9** — A manifest entry must not spell an operating system word or an
+  architecture word.
 
 <a id="ws-bootstrap"></a>
 

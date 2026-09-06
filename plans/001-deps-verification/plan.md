@@ -14,14 +14,13 @@ The work starts in FuguBSD/Tooling, because the org pack owns `scripts/deps`,
 
 ## Citations
 
-Implements: none. The design units do not exist yet.
+Implements: WS-DEPS without WS-DEPS-7 and WS-DEPS-8
 
-The implementation adds the units to the Tooling specification, in
-`spec/make.md` and `spec/sync.md`. It then extends the workspace unit
-[WS-DEPS](../../spec/workspace.md#ws-deps) with three rules, and sets the
-register row in the same change. The rules cover the digest file, the key files,
-and the `tool` entry that installs signify. This plan names no rule number,
-because a number exists only after the rule lands.
+The workspace unit [WS-DEPS](../../spec/workspace.md#ws-deps) states the target
+design. WS-DEPS-7 and WS-DEPS-8 landed with the digest file. The key files and
+the verification tiers belong to the specification of FuguBSD/Tooling, which
+owns `scripts/deps`. The register holds the unit as `partial`, and it names each
+absent part.
 
 This plan is the record of the organization. [plans/CLAUDE.md](../CLAUDE.md)
 states that a plan lives in the repository that implements it, and describes the
@@ -39,7 +38,7 @@ without approval.
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Alias resolution reads the digest manifest. The install path must not probe the network. An ambiguous match is an error.                                               |
 | 2   | Each entry that downloads a URL must carry a sha256 digest, or a signify signature. Neither one present is an error.                                                   |
-| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by file name.                                                                                              |
+| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by download URL. The operator approved this reversal of the file-name key on 2026-09-06.                   |
 | 4   | A new `tool` environment installs before every other environment. A `tool` entry must not use the signify tier.                                                        |
 | 5   | `scripts/deps` derives the signature URLs from the download URL base, so the signify tier stays generic.                                                               |
 | 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.                                                        |
@@ -105,6 +104,11 @@ own integrity check.
 
 The scw entry names a plain binary, with no archive and no member.
 
+The `deps/SHA256.txt` of the workspace records the Linux digests of gh, and the
+`linux_x64` digest of gitleaks. The `linux_arm64` digest of gitleaks 8.30.1 is
+`e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080`, per the
+upstream checksum file. It joins the file with the `{arch}` placeholder.
+
 ### Each upstream publishes a checksum file
 
 Each pinned tool publishes a sha256 list beside its release assets. The operator
@@ -137,13 +141,18 @@ These places name the action today. Each one changes or goes.
 | `Tooling/.github/workflows/check.yml`       | The `gitleaks` job runs the action before `make gitleaks`.         |
 | `org/sync/t/ci/workflows.t`                 | Pins the action path in each use. A workflow without a use passes. |
 | Each consumer `.github/workflows/check.yml` | A `Setup gitleaks` step before `make check`.                       |
-| `Workspace/spec/workspace.md`               | WS-DEPS-4 names the action version as the source of the pin.       |
 | `Workspace/README.md`                       | The deps paragraph names the action.                               |
 
 The synced `t/ci/workflows.t` checks the action path only where a workflow uses
 it, so a consumer can drop the step before Tooling deletes the action. The
 reverse order breaks CI: a consumer that still uses a deleted action fails at
 the step.
+
+The same synced test fails a workflow line that runs `make deps`, with the
+message "runs no deps target of its own". The rule assumes that the setup-perl
+action owns every install. A check workflow without that action, as in the
+workspace, therefore cannot take the `make deps` step of decision 9 before
+Tooling changes the test. Phase 1 changes the test with the script.
 
 The action appends `$HOME/.local/bin` to `GITHUB_PATH`. `scripts/deps` installs
 into the same directory and appends nothing. The default PATH of the Ubuntu
@@ -162,10 +171,11 @@ a target of its own. It must run inside `make deps`.
 
 `Fugu/lib/Fugu/Signify.pm` verifies a signify signature over a SHA256 manifest,
 and then each named file against its digest. The manifest format is
-`SHA256 (filename) = hexdigest`, the format that decision 3 names. The module
-verifies the signature before it digests any file, and it rejects an empty
-manifest, a bad line, and a duplicate name. The module accepts a key set in
-trust order: the current key first, and the next key second.
+`SHA256 (key) = hexdigest`, the format that decision 3 names. The parser takes
+any key, so a URL key reads as a file-name key does. The module verifies the
+signature before it digests any file, and it rejects an empty manifest, a bad
+line, and a duplicate key. The module accepts a key set in trust order: the
+current key first, and the next key second.
 
 `FuguVM/lib/App/FuguVM/Mirror.pm` consumes that module. It names each key file
 after the OpenBSD release, for example `openbsd-78-base.pub`, and resolves it
@@ -313,9 +323,9 @@ the architecture word. The candidate set is the cross product of the two lists.
 - The operating system `Darwin` gives `darwin`, `macOS`, `macos` and `osx`.
 - The operating system `Linux` gives `linux`, and `OpenBSD` gives `openbsd`.
 
-The script forms one file name for each candidate. It then selects the candidate
-that `deps/SHA256.txt` names. No match is an error, and two matches are an
-error. The install path makes no request to find the URL.
+The script forms one URL for each candidate. It then selects the candidate that
+`deps/SHA256.txt` names. No match is an error, and two matches are an error. The
+install path makes no request to find the URL.
 
 One selected pair expands both the URL and the member path of an entry. The
 member path of the gh entry holds the same words as the asset name, and the two
@@ -328,14 +338,14 @@ state this limit.
 
 ### The digest manifest
 
-`deps/SHA256.txt` holds one line for each downloaded file, in BSD format. One
-file serves every operating system and every architecture, because the asset
-names differ already. The parser copies the rules of `Fugu::Signify`: a bad
-line, a digest that is not 64 hexadecimal characters, and a duplicate name are
-each an error.
+`deps/SHA256.txt` holds one line for each download, in BSD format, and the key
+is the download URL. One file serves every operating system and every
+architecture. The URL key also keeps two upstreams apart when both publish one
+file name. The parser copies the rules of `Fugu::Signify`: a bad line, a digest
+that is not 64 hexadecimal characters, and a duplicate URL are each an error.
 
-    SHA256 (gh_2.97.0_linux_amd64.tar.gz) = 30a1...
-    SHA256 (gitleaks_8.30.1_linux_x64.tar.gz) = 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    SHA256 (https://github.com/cli/cli/releases/download/v2.97.0/gh_2.97.0_linux_amd64.tar.gz) = 30a1...
+    SHA256 (https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz) = 551f...
 
 A stable-name asset, such as `releases/latest/download/Fugu.tar.gz`, must not
 appear in the file. Its bytes change with each release, and a recorded digest
@@ -455,7 +465,7 @@ else lives in FuguWeb.
   fingerprint from the public key packet, and computes the Web Key Directory
   hash with `Digest::SHA` and a z-base-32 encoder.
 - `Fugu::Signify` exposes the manifest parser as a public method, and gains a
-  writer for the `SHA256 (name) = digest` form, so the rotation workflow and the
+  writer for the `SHA256 (key) = digest` form, so the rotation workflow and the
   check share one implementation of the manifest.
 
 Each module reads and writes bytes and text. No module runs gpg or signify, so
@@ -512,8 +522,8 @@ signature.
 
 For each `bin` entry and each `dist` entry, `scripts/deps` runs this order.
 
-1. A `deps/SHA256.txt` entry for the resolved file name gives the digest. The
-   script downloads the file and compares the digest.
+1. A `deps/SHA256.txt` entry for the resolved URL gives the digest. The script
+   downloads the file and compares the digest.
 2. With no such entry, the script derives `SHA256` and `SHA256.sig` from the
    directory part of the download URL. It downloads the pair, verifies the
    signature against the keys of `deps/KEYS.txt`, and then verifies the file
@@ -561,6 +571,9 @@ the upstream checksum file that the evidence names, before the commit.
   environment, with the digest that the action holds today.
 - `.github/workflows/check.yml`: the `gitleaks` job runs `make deps` in place of
   the action.
+- `org/sync/t/ci/workflows.t`: permit a `make deps` step in a check workflow
+  without the setup-perl action. A consumer then installs gitleaks from its
+  manifest.
 - The action, its test, and WFL-GITLEAKS-1 stay until Phase 5.
 - `perl/t/deps.t`: cover the alias table, both key forms, both tiers and each
   error path, with the stub `ftp` sibling that the evidence describes.
@@ -606,22 +619,21 @@ comments that name the old expansion. Each check workflow drops the
 `Setup gitleaks` step, and a workflow without the `setup-perl` action adds a
 `make deps` step.
 
-| Repository   | Work beyond the shared steps                                         |
-| ------------ | -------------------------------------------------------------------- |
-| .github      | the check workflow only, if one exists                               |
-| Fugu         | no other bin entry                                                   |
-| FuguCTX      | digests for scw                                                      |
-| FuguSTX      | digests for scw and tofu                                             |
-| FuguTTX      | digests for scw; signify tier for the Fugu dist                      |
-| FuguVM       | signify tier for the Fugu dist                                       |
-| FuguWeb      | signify tier for the Fugu dist                                       |
-| Repositories | digests for scw, gh and tofu; remove the `macOS` workaround          |
-| Website      | the manifest from Phase 3                                            |
-| Workspace    | digests for gh; move gitleaks to `tool`; remove the `x64` workaround |
+| Repository   | Work beyond the shared steps                                                   |
+| ------------ | ------------------------------------------------------------------------------ |
+| .github      | the check workflow only, if one exists                                         |
+| Fugu         | no other bin entry                                                             |
+| FuguCTX      | digests for scw                                                                |
+| FuguSTX      | digests for scw and tofu                                                       |
+| FuguTTX      | digests for scw; signify tier for the Fugu dist                                |
+| FuguVM       | signify tier for the Fugu dist                                                 |
+| FuguWeb      | signify tier for the Fugu dist                                                 |
+| Repositories | digests for scw, gh and tofu; remove the `macOS` workaround                    |
+| Website      | the manifest from Phase 3                                                      |
+| Workspace    | move gitleaks to `tool`; replace `x64` with `{arch}`, and add the arm64 digest |
 
-The Workspace change also extends WS-DEPS, rewrites WS-DEPS-4 and the README
-paragraph so neither names the action, sets the register row, and deletes this
-plan.
+The Workspace change also rewrites the README paragraph, so it does not name the
+action. It sets the register row to `done`. It deletes this plan.
 
 ### Phase 5 — FuguBSD/Tooling, the removal
 
@@ -637,12 +649,15 @@ plan.
 
 ### What lands now
 
-This plan lands now. It records the decisions, the evidence and the design.
+Phase 1 and Phase 2 wait on nothing. Each starts now, and the two run in
+parallel.
+
+The Workspace holds the parts of its change that the current synced
+`scripts/deps` accepts. `deps/SHA256.txt` records the Linux digests of gh and of
+gitleaks, `t/ci/deps.t` keeps it in step with the manifest, and WS-DEPS states
+the target design. The register holds the unit as `partial`.
 
 ### What waits
-
-Phase 1 and Phase 2 wait on nothing. Each starts as soon as this plan merges,
-and the two run in parallel.
 
 Phase 3 waits on Phase 1, because the rotation workflow needs the key file
 format and the `tool` environment. It waits on a Fugu release and a FuguWeb
@@ -652,6 +667,13 @@ of each.
 Phase 4 waits on Phase 1 for each repository. The three repositories with a
 `dist` line also wait on Phase 3, and on one signed Fugu release. Their
 `make deps` fails until a signature exists, and that failure is the design.
+
+The rest of the Workspace change waits on Phase 1. That Phase must ship the
+`tool` word, the alias table, and the change to `t/ci/workflows.t`. The
+workspace then takes the `tool` environment and the `{arch}` placeholder of the
+gitleaks entry. It also takes the `make deps` step of the check workflow, the
+README paragraph, and the `done` register row. The deletion of this plan lands
+with them.
 
 Phase 5 waits on every check workflow of Phase 4. A consumer that still uses the
 action fails at the step when the action is gone.
@@ -669,3 +691,7 @@ action fails at the step when the action is gone.
    that another repository implements. This plan describes the work of eleven
    repositories. The operator confirms the location, or moves the Tooling design
    into the Tooling plan and keeps the rollout table here.
+5. The Workspace holds `deps/Linux.txt` only, and the operator works on Darwin.
+   The design names gitleaks in `deps/Darwin.txt` as well, so `make deps`
+   replaces the Homebrew install. The operator confirms whether the Workspace
+   gets a Darwin manifest.
