@@ -35,17 +35,18 @@ tension with the rule.
 The operator made these decisions. An implementation must not reverse one
 without approval.
 
-| #   | Decision                                                                                                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Alias resolution reads the digest manifest. The install path must not probe the network. An ambiguous match is an error.                   |
-| 2   | Each entry that downloads a URL must carry a sha256 digest, or a signify signature. Neither one present is an error.                       |
-| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by file name.                                                                  |
-| 4   | A new `tool` environment installs before every other environment. A `tool` entry must not use the signify tier.                            |
-| 5   | `scripts/deps` derives the signature URLs from the download URL base, so the signify tier stays generic.                                   |
-| 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.                            |
-| 7   | The rule MK-GITLEAKS-4 of Tooling changes, so a manifest can provide gitleaks.                                                             |
-| 8   | `deps/KEYS.txt` declares each signify public key, as the key body or as a URL and sha256 pair. `deps/KEYS.local.txt` holds a consumer key. |
-| 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.                            |
+| #   | Decision                                                                                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Alias resolution reads the digest manifest. The install path must not probe the network. An ambiguous match is an error.                                               |
+| 2   | Each entry that downloads a URL must carry a sha256 digest, or a signify signature. Neither one present is an error.                                                   |
+| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by file name.                                                                                              |
+| 4   | A new `tool` environment installs before every other environment. A `tool` entry must not use the signify tier.                                                        |
+| 5   | `scripts/deps` derives the signature URLs from the download URL base, so the signify tier stays generic.                                                               |
+| 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.                                                        |
+| 7   | The rule MK-GITLEAKS-4 of Tooling changes, so a manifest can provide gitleaks.                                                                                         |
+| 8   | `deps/KEYS.txt` declares each signify public key, as the key body or as a URL and sha256 pair. `deps/KEYS.local.txt` holds a consumer key.                             |
+| 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.                                                        |
+| 10  | The keys publish under `https://www.fugubsd.org/keys/`. FuguWeb generates the key directory, the Apache `KEYS` file, and the well-known URLs from a description block. |
 
 Decision 6 puts the private key in CI. The signature then proves that the asset
 store holds the bytes that CI built. It does not prove that CI is honest. The
@@ -198,6 +199,39 @@ consumer with no change to the script. Each synced file must start with a marker
 comment (SYNC-MARKER-1 of Tooling), so the key file starts with `#` lines, and
 the parser must skip them.
 
+### The website publishes through fuguweb on GitHub Pages
+
+The Website repository publishes at `www.fugubsd.org` (SITE-BUILD-3 of Website),
+and the Repositories project holds the Pages settings. The shared
+`web-publish.yml` workflow of Tooling installs fuguweb from the latest release
+tarballs of Fugu and FuguWeb, never from a checkout. A Website build therefore
+takes a FuguWeb feature only after a FuguWeb release.
+
+fuguweb copies an asset only when the file sits directly in `web/`, and it skips
+every dot file (`App::FuguWeb::Site`, ASSETS). A `web/keys/` directory and a
+`.well-known/` directory both stay out of the build today.
+
+GitHub Pages sits under the same GitHub organization as the release assets and
+the CI secret. The website is not an independent trust domain. The DNS record of
+`fugubsd.org` is the part outside GitHub.
+
+### The publication conventions
+
+RFC 8615 reserves `.well-known/` for registered names. Two registered names
+serve a GPG key. `openpgpkey` is the Web Key Directory, and `gpg --locate-keys`
+reads it from an email address. Its direct method serves the key in binary form
+at `https://<domain>/.well-known/openpgpkey/hu/<hash>?l=<local>`, with a
+`policy` file beside `hu/`. The hash is the z-base-32 form of the SHA-1 of the
+local part in lower case. The domain is the email domain itself, so a key for
+`@fugubsd.org` lives under `fugubsd.org`, not under `www.fugubsd.org`.
+`security.txt` (RFC 9116) holds `Contact`, `Expires` and `Encryption` fields,
+and the last one points at a key. Signify has no registered name.
+
+The Apache projects publish one `KEYS` file with every GPG public key of a
+project, and `gpg --import` reads it. OpenBSD names a key
+`openbsd-<release>-<purpose>.pub`, and its untrusted comment names the key in
+words.
+
 ### The workspace change conflicts with an organization rule
 
 The rule MK-GITLEAKS-4 of `Tooling/spec/make.md` states that no deps manifest
@@ -312,8 +346,8 @@ as one word. The URL form gives the URL of the key file and the sha256 digest of
 that file. Both forms are valid in both files, and one file can mix them.
 
     # The org pack of FuguBSD/Tooling owns this file. ...
-    fugubsd-1 https://www.fugubsd.org/signify/fugubsd-1.pub 9f86d081...
-    fugubsd-2 https://www.fugubsd.org/signify/fugubsd-2.pub 2c26b46b...
+    fugubsd-1-release https://www.fugubsd.org/keys/fugubsd-1-release.pub 9f86d081...
+    fugubsd-2-release https://www.fugubsd.org/keys/fugubsd-2-release.pub 2c26b46b...
 
 The field count selects the form. Two fields give the body form, and the body
 must be 56 base64 characters that decode to 42 bytes with the prefix `Ed`. Three
@@ -342,19 +376,108 @@ point, or a third-party key that a consumer pins in `deps/KEYS.local.txt`.
 The file sits in `deps/` and not in a manifest, because a key does not depend on
 the operating system. A manifest entry needs the same lines in each per-OS file.
 
+### The key names
+
+A key file is `<org>-<serial>-<purpose>.<ext>`, for example
+`fugubsd-1-release.pub`.
+
+- The organization word is `fugubsd`.
+- The serial is an integer with no padding. It starts at 1 for each purpose, and
+  each rotation of that purpose adds one. A reader sorts it as a number.
+- The purpose names what the key signs. `release` signs the release assets. A
+  new purpose starts at serial 1, and a compromise of one purpose leaves the
+  others in force.
+- The extension names the type. `.pub` is a signify key, and `.asc` is an
+  armored GPG key.
+
+The stem, such as `fugubsd-1-release`, is the key name in `deps/KEYS.txt` and in
+the site description. The untrusted comment of a signify key is
+`<stem> public key`. The name of a key never changes, and a retired key stays
+published at its URL, so a release that it signed still verifies.
+
+### The publication
+
+Every key lives under `https://www.fugubsd.org/keys/`. One prefix holds each key
+type, and no subdomain exists, because a subdomain needs a second Pages site and
+buys nothing.
+
+| Path                                 | Content                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `keys/<stem>.pub`, `keys/<stem>.asc` | Each key file, byte for byte.                                                         |
+| `keys/KEYS`                          | Every GPG key of the site, current keys first, in the Apache form.                    |
+| `keys/SHA256`, `keys/SHA256.sig`     | The digest of every key file, signed with the current signify release key.            |
+| `keys/index.html`                    | The human page: serial, purpose, type, fingerprint, status and dates of each key.     |
+| `.well-known/openpgpkey/`            | The `hu/<hash>` file of each GPG key with an email, and the `policy` file.            |
+| `.well-known/security.txt`           | The contact, an expiry, and an `Encryption` field that points at the current GPG key. |
+
+The Web Key Directory reads the apex domain. The implementation confirms that
+`fugubsd.org` serves the path, or redirects it to `www` in a form that gpg
+follows. Without either, the advanced method needs a CNAME
+`openpgpkey.fugubsd.org`, which the Repositories project holds.
+
+### The FuguWeb key directory
+
+FuguWeb owns the key directory, so every FuguBSD site publishes keys the same
+way. A `keys` block in `.fuguwebrc` names the source directory under `web/` and
+the organization word. One `key` block per key holds the status, the dates, and
+for a GPG key the email and the fingerprint. The type comes from the extension,
+and the serial and the purpose come from the name.
+
+    keys "keys" {
+    	org     = fugubsd
+    	contact = mailto:security@fugubsd.org
+    }
+
+    key "fugubsd-1-release" {
+    	status = current
+    	since  = 2026-09-06
+    }
+
+The status is `current`, `next` or `retired`. Each purpose holds one `current`
+key and at most one `next` key.
+
+`fuguweb build` copies each key file, and it copies `SHA256` and `SHA256.sig` as
+they are. It generates `KEYS`, `index.html`, the `openpgpkey` tree, and
+`security.txt` when the block names a contact. The build computes the Web Key
+Directory hash with `Digest::SHA` and a z-base-32 encoder, and it decodes the
+armored key body for the binary form, so the build needs no gpg and no signify.
+
+`fuguweb check` holds the directory to the design. Each key file has a block,
+and each block has a file. Each name matches the pattern. Each purpose holds one
+`current` key. `SHA256` names every key file with its digest. A signature
+verification is the work of the consumer install, because the site build cannot
+sign.
+
+The site build cannot sign, so `SHA256` and `SHA256.sig` are source files. The
+rotation workflow writes them, and the check verifies the digests. The
+implementation adds a unit to the FuguWeb specification, and the web pack of
+Tooling documents the block.
+
 ### The rotation procedure
 
 A consumer verifies a signature against its synced copy of `deps/KEYS.txt`. A
 release that a new key signs fails in each consumer that holds the old copy. The
 rotation therefore runs in two steps, and the trust order carries the gap.
 
-1. The rotation workflow generates the next key pair. It publishes the public
-   key on the website, stores the private key as a second secret, and opens the
-   pull request against Tooling that adds the next key as the second line, with
-   its URL and its digest. Releases still sign with the current key.
+1. The rotation workflow takes the highest serial of the purpose and adds one.
+   It generates the pair with `signify -G -n`, writes the public key to
+   `web/keys/<stem>.pub` with a `key` block of status `next`, and stores the
+   private key as a second secret. It rewrites `keys/SHA256` to name every key
+   file, and signs it with the current key, so the current key vouches for the
+   next one. It commits, and it opens the pull request against Tooling that adds
+   the next key as the second line, with its URL and its digest. Releases still
+   sign with the current key.
 2. After the Tooling change merges, and after each consumer syncs it, the
-   operator switches the release secret to the next key, and moves its line to
-   the top. The old key stays as the second line until no consumer needs it.
+   operator switches the release secret to the next key. The workflow sets the
+   next key to `current` and the old key to `retired`, signs `keys/SHA256` with
+   the new current key, and moves its line to the top of `deps/KEYS.txt`.
+
+A routine rotation keeps the retired key as the second line of `deps/KEYS.txt`
+until every release that it signed has a successor. A compromise removes the
+line at once. The retired key file stays published in both cases.
+
+The first run of the workflow finds no current key. It sets the new key to
+`current` at once, and the key signs its own manifest.
 
 The pull request step is a requirement, not an option. A rotation without it
 breaks `make deps` in each consumer as soon as a release carries the new
@@ -413,21 +536,35 @@ the upstream checksum file that the evidence names, before the commit.
   environment, with the digest that the action holds today.
 - `.github/workflows/check.yml`: the `gitleaks` job runs `make deps` in place of
   the action.
-- The action, its test, and WFL-GITLEAKS-1 stay until Phase 4.
+- The action, its test, and WFL-GITLEAKS-1 stay until Phase 5.
 - `perl/t/deps.t`: cover the alias table, both key forms, both tiers and each
   error path, with the stub `ftp` sibling that the evidence describes.
 - A plan in `Tooling/plans/` lands first, and the implementation deletes it.
 
-### Phase 2 — FuguBSD/Website
+### Phase 2 — FuguBSD/FuguWeb
+
+- `.fuguwebrc`: add the `keys` block and the `key` block, per the key directory
+  design.
+- `App::FuguWeb::Site`: copy the key files and the manifest pair, and generate
+  `KEYS`, `index.html`, the `openpgpkey` tree and `security.txt`.
+- `fuguweb check`: hold the directory to the design.
+- `spec/web.md`: add the unit, and set the register row.
+- The tests cover each generated file, each check, and the hash of the Web Key
+  Directory against a known vector.
+- Release FuguWeb, because the publish workflow installs the latest release.
+- A plan in `FuguWeb/plans/` lands first, and the implementation deletes it.
+
+### Phase 3 — FuguBSD/Website
 
 - `deps/Linux.txt`: add the file, with `tool pkg signify-openbsd`.
-- Publish the public key under a stable URL.
-- Add the rotation workflow, per the rotation procedure. It generates the key
-  pair with `signify -G -n`, stores the secret, commits the public key, and
-  opens a pull request against Tooling that adds the new serial, its URL and its
-  digest to `org/sync/deps/KEYS.txt`.
+- `.fuguwebrc` and `web/keys/`: add the `keys` block, and the first key through
+  the rotation workflow.
+- Add the rotation workflow, per the rotation procedure.
+- Confirm the apex behavior for the Web Key Directory, and set the CNAME in
+  Repositories when the apex cannot serve the path.
+- The web pack of Tooling documents the `keys` block in `web/CLAUDE.md`.
 
-### Phase 3 — the consumers
+### Phase 4 — the consumers
 
 Each repository takes the synced files, adds gitleaks to the `tool` environment
 of each manifest, and adds its digests. Each repository removes the workaround
@@ -445,14 +582,14 @@ comments that name the old expansion. Each check workflow drops the
 | FuguVM       | signify tier for the Fugu dist                                       |
 | FuguWeb      | signify tier for the Fugu dist                                       |
 | Repositories | digests for scw, gh and tofu; remove the `macOS` workaround          |
-| Website      | the manifest from Phase 2                                            |
+| Website      | the manifest from Phase 3                                            |
 | Workspace    | digests for gh; move gitleaks to `tool`; remove the `x64` workaround |
 
 The Workspace change also extends WS-DEPS, rewrites WS-DEPS-4 and the README
 paragraph so neither names the action, sets the register row, and deletes this
 plan.
 
-### Phase 4 — FuguBSD/Tooling, the removal
+### Phase 5 — FuguBSD/Tooling, the removal
 
 - `actions/setup-gitleaks/`: delete the action.
 - `perl/t/setup-gitleaks.t`: delete the test.
@@ -470,23 +607,25 @@ This plan lands now. It records the decisions, the evidence and the design.
 
 ### What waits
 
-Phase 1 waits on nothing. It starts as soon as this plan merges.
+Phase 1 and Phase 2 wait on nothing. Each starts as soon as this plan merges,
+and the two run in parallel.
 
-Phase 2 waits on Phase 1, because the rotation workflow needs the key file
-format and the `tool` environment.
+Phase 3 waits on Phase 1, because the rotation workflow needs the key file
+format and the `tool` environment. It waits on a FuguWeb release with Phase 2,
+because the publish workflow installs the latest release.
 
-Phase 3 waits on Phase 1 for each repository. The three repositories with a
-`dist` line also wait on Phase 2, and on one signed Fugu release. Their
+Phase 4 waits on Phase 1 for each repository. The three repositories with a
+`dist` line also wait on Phase 3, and on one signed Fugu release. Their
 `make deps` fails until a signature exists, and that failure is the design.
 
-Phase 4 waits on every check workflow of Phase 3. A consumer that still uses the
+Phase 5 waits on every check workflow of Phase 4. A consumer that still uses the
 action fails at the step when the action is gone.
 
 ### Open questions
 
 1. The tofu version differs between two repositories. Repositories pins 1.10.6,
    and FuguSTX pins 1.12.6. The operator picks one version, or keeps both.
-2. FuguOracle and FuguPass hold no `deps/` directory. Phase 2 gives Website a
+2. FuguOracle and FuguPass hold no `deps/` directory. Phase 3 gives Website a
    manifest. The operator confirms which of the other two needs one.
 3. The digest file needs one entry for each operating system and architecture
    pair that the organization supports. Some pairs run on no machine here. The
