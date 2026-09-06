@@ -27,7 +27,7 @@ This plan is the record of the organization. [plans/CLAUDE.md](../CLAUDE.md)
 states that a plan lives in the repository that implements it, and describes the
 work of that repository only. The workspace covers every project, so the
 operator keeps the design here. Each implementing repository takes its own plan
-from this one, and the Tooling plan lands first. Open question 5 records the
+from this one, and the Tooling plan lands first. Open question 4 records the
 tension with the rule.
 
 ## Decisions
@@ -35,17 +35,17 @@ tension with the rule.
 The operator made these decisions. An implementation must not reverse one
 without approval.
 
-| #   | Decision                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Alias resolution reads the digest manifest. The install path must not probe the network. An ambiguous match is an error. |
-| 2   | Each entry that downloads a URL must carry a sha256 digest, or a signify signature. Neither one present is an error.     |
-| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by file name.                                                |
-| 4   | A new `tool` environment installs before every other environment. A `tool` entry must not use the signify tier.          |
-| 5   | `scripts/deps` derives the signature URLs from the download URL base, so the signify tier stays generic.                 |
-| 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.          |
-| 7   | The rule MK-GITLEAKS-4 of Tooling changes, so a manifest can provide gitleaks.                                           |
-| 8   | `deps/KEYS.txt` declares each signify public key by URL. `deps/KEYS.local.txt` holds a consumer key.                     |
-| 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.          |
+| #   | Decision                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Alias resolution reads the digest manifest. The install path must not probe the network. An ambiguous match is an error.                   |
+| 2   | Each entry that downloads a URL must carry a sha256 digest, or a signify signature. Neither one present is an error.                       |
+| 3   | The digests live in `deps/SHA256.txt`, in BSD format, keyed by file name.                                                                  |
+| 4   | A new `tool` environment installs before every other environment. A `tool` entry must not use the signify tier.                            |
+| 5   | `scripts/deps` derives the signature URLs from the download URL base, so the signify tier stays generic.                                   |
+| 6   | The release key lives online, as a GitHub organization secret. A workflow of the Website repository rotates it.                            |
+| 7   | The rule MK-GITLEAKS-4 of Tooling changes, so a manifest can provide gitleaks.                                                             |
+| 8   | `deps/KEYS.txt` declares each signify public key, as the key body or as a URL and sha256 pair. `deps/KEYS.local.txt` holds a consumer key. |
+| 9   | The `setup-gitleaks` action retires. Each check workflow installs gitleaks with `make deps`, from the manifest.                            |
 
 Decision 6 puts the private key in CI. The signature then proves that the asset
 store holds the bytes that CI built. It does not prove that CI is honest. The
@@ -172,6 +172,15 @@ one key to the module.
 
 `Fugu::Signify` holds no private key, and it cannot sign.
 
+### A signify public key is one line
+
+A signify public key file holds two lines. The first line starts with
+`untrusted comment: `, and signify(1) rejects a file without that prefix. The
+second line is the key body: 42 bytes in base64, 56 characters, and the first
+two bytes spell `Ed`. The comment carries no trust. A key file is therefore
+reproducible from its body and any comment, and a text file can hold the body as
+one word.
+
 ### One release workflow covers every distribution
 
 `Tooling/.github/workflows/perl-release.yml` builds and publishes every Perl
@@ -293,26 +302,40 @@ breaks at the next release. Such an asset uses the signify tier.
 
 ### The key file
 
-`deps/KEYS.txt` declares each signify public key by URL. The org pack owns the
-file, and sync copies it to each consumer. A consumer adds a third-party key to
+`deps/KEYS.txt` declares each signify public key. The org pack owns the file,
+and sync copies it to each consumer. A consumer adds a third-party key to
 `deps/KEYS.local.txt`, which sync must not touch. That split copies the rule
 MK-LOCAL-1 of Tooling.
 
+A line holds a name and then one of two forms. The body form gives the key body
+as one word. The URL form gives the URL of the key file and the sha256 digest of
+that file. Both forms are valid in both files, and one file can mix them.
+
     # The org pack of FuguBSD/Tooling owns this file. ...
-    fugubsd-1 https://www.fugubsd.org/signify/fugubsd-1.pub 9f86d081...
+    fugubsd-1 RWQ...56 characters...
+    fugubsd-2 https://www.fugubsd.org/signify/fugubsd-2.pub 9f86d081...
 
-Each line holds a name, a URL and the sha256 digest of the key file. A line that
-starts with `#` is a comment, so the file can carry the sync marker. The line
-order is the trust order, so the current key comes first. The digest is the
-trust anchor, and the website is the publication point. A rotation adds a
-serial, and it must not change a published URL.
+The field count selects the form. Two fields give the body form, and the body
+must be 56 base64 characters that decode to 42 bytes with the prefix `Ed`. Three
+fields give the URL form, and the digest must be 64 hexadecimal characters. Any
+other count, or a word of the wrong shape, is an error that names the line. A
+line that starts with `#` is a comment, so the file can carry the sync marker.
+The line order is the trust order, so the current key comes first.
 
-The install path fetches each key into a temporary directory, and compares its
-digest against the line. A mismatch is an error that names the key.
+The body form needs no request. The install path writes the body into a key file
+in a temporary directory, with an `untrusted comment: ` line that names the key,
+and gives that file to signify(1). The FuguBSD keys use this form, so an outage
+of the website cannot stop `make deps`. The website still publishes each key, as
+the human-readable publication point.
+
+The URL form serves a key that a consumer prefers to reference at its
+publication point, for example the key of a third party. The install path
+fetches the file into a temporary directory, and compares its digest against the
+line. A mismatch is an error that names the key. The digest is the trust anchor,
+and a rotation must not change a published URL.
 
 The file sits in `deps/` and not in a manifest, because a key does not depend on
-the operating system. A manifest entry needs the same three lines in each per-OS
-file.
+the operating system. A manifest entry needs the same lines in each per-OS file.
 
 ### The rotation procedure
 
@@ -321,9 +344,9 @@ release that a new key signs fails in each consumer that holds the old copy. The
 rotation therefore runs in two steps, and the trust order carries the gap.
 
 1. The rotation workflow generates the next key pair. It publishes the public
-   key, stores the private key as a second secret, and opens the pull request
-   against Tooling that adds the next key as the second line. Releases still
-   sign with the current key.
+   key on the website, stores the private key as a second secret, and opens the
+   pull request against Tooling that adds the next key body as the second line.
+   Releases still sign with the current key.
 2. After the Tooling change merges, and after each consumer syncs it, the
    operator switches the release secret to the next key, and moves its line to
    the top. The old key stays as the second line until no consumer needs it.
@@ -386,8 +409,8 @@ the upstream checksum file that the evidence names, before the commit.
 - `.github/workflows/check.yml`: the `gitleaks` job runs `make deps` in place of
   the action.
 - The action, its test, and WFL-GITLEAKS-1 stay until Phase 4.
-- `perl/t/deps.t`: cover the alias table, both tiers and each error path, with
-  the stub `ftp` sibling that the evidence describes.
+- `perl/t/deps.t`: cover the alias table, both key forms, both tiers and each
+  error path, with the stub `ftp` sibling that the evidence describes.
 - A plan in `Tooling/plans/` lands first, and the implementation deletes it.
 
 ### Phase 2 — FuguBSD/Website
@@ -396,8 +419,8 @@ the upstream checksum file that the evidence names, before the commit.
 - Publish the public key under a stable URL.
 - Add the rotation workflow, per the rotation procedure. It generates the key
   pair with `signify -G -n`, stores the secret, commits the public key, and
-  opens a pull request against Tooling that adds the new serial to
-  `org/sync/deps/KEYS.txt`.
+  opens a pull request against Tooling that adds the new serial and its key body
+  to `org/sync/deps/KEYS.txt`.
 
 ### Phase 3 — the consumers
 
@@ -463,11 +486,7 @@ action fails at the step when the action is gone.
 3. The digest file needs one entry for each operating system and architecture
    pair that the organization supports. Some pairs run on no machine here. The
    implementation records the digest from the upstream checksum file.
-4. A signify public key is one base64 line of 56 characters. `deps/KEYS.txt`
-   could hold the key body in place of the URL and the digest. The install path
-   then needs no request to the website, and a website outage cannot stop
-   `make deps`. Decision 8 names the URL, so the operator decides.
-5. [plans/CLAUDE.md](../CLAUDE.md) states that a plan must not describe work
+4. [plans/CLAUDE.md](../CLAUDE.md) states that a plan must not describe work
    that another repository implements. This plan describes the work of eleven
    repositories. The operator confirms the location, or moves the Tooling design
    into the Tooling plan and keeps the rollout table here.
