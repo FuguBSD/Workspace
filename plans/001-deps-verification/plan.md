@@ -312,8 +312,8 @@ as one word. The URL form gives the URL of the key file and the sha256 digest of
 that file. Both forms are valid in both files, and one file can mix them.
 
     # The org pack of FuguBSD/Tooling owns this file. ...
-    fugubsd-1 RWQ...56 characters...
-    fugubsd-2 https://www.fugubsd.org/signify/fugubsd-2.pub 9f86d081...
+    fugubsd-1 https://www.fugubsd.org/signify/fugubsd-1.pub 9f86d081...
+    fugubsd-2 https://www.fugubsd.org/signify/fugubsd-2.pub 2c26b46b...
 
 The field count selects the form. Two fields give the body form, and the body
 must be 56 base64 characters that decode to 42 bytes with the prefix `Ed`. Three
@@ -322,17 +322,22 @@ other count, or a word of the wrong shape, is an error that names the line. A
 line that starts with `#` is a comment, so the file can carry the sync marker.
 The line order is the trust order, so the current key comes first.
 
+The URL form fetches the key file into a temporary directory, and compares its
+digest against the line. A mismatch is an error that names the key. The digest
+is the trust anchor, and a rotation must not change a published URL.
+
+The FuguBSD keys use the URL form. Each `make deps` then fetches the published
+key and verifies a release signature with it, so every install is a test of the
+publication. A key that the website serves wrong, or not at all, or a release
+that the published key did not sign, fails at the first consumer install. The
+cost is that an outage of the website stops the signify tier. The operator
+accepts it, because the release chain must not work while its public record is
+broken.
+
 The body form needs no request. The install path writes the body into a key file
 in a temporary directory, with an `untrusted comment: ` line that names the key,
-and gives that file to signify(1). The FuguBSD keys use this form, so an outage
-of the website cannot stop `make deps`. The website still publishes each key, as
-the human-readable publication point.
-
-The URL form serves a key that a consumer prefers to reference at its
-publication point, for example the key of a third party. The install path
-fetches the file into a temporary directory, and compares its digest against the
-line. A mismatch is an error that names the key. The digest is the trust anchor,
-and a rotation must not change a published URL.
+and gives that file to signify(1). The form serves a key with no publication
+point, or a third-party key that a consumer pins in `deps/KEYS.local.txt`.
 
 The file sits in `deps/` and not in a manifest, because a key does not depend on
 the operating system. A manifest entry needs the same lines in each per-OS file.
@@ -345,8 +350,8 @@ rotation therefore runs in two steps, and the trust order carries the gap.
 
 1. The rotation workflow generates the next key pair. It publishes the public
    key on the website, stores the private key as a second secret, and opens the
-   pull request against Tooling that adds the next key body as the second line.
-   Releases still sign with the current key.
+   pull request against Tooling that adds the next key as the second line, with
+   its URL and its digest. Releases still sign with the current key.
 2. After the Tooling change merges, and after each consumer syncs it, the
    operator switches the release secret to the next key, and moves its line to
    the top. The old key stays as the second line until no consumer needs it.
@@ -419,8 +424,8 @@ the upstream checksum file that the evidence names, before the commit.
 - Publish the public key under a stable URL.
 - Add the rotation workflow, per the rotation procedure. It generates the key
   pair with `signify -G -n`, stores the secret, commits the public key, and
-  opens a pull request against Tooling that adds the new serial and its key body
-  to `org/sync/deps/KEYS.txt`.
+  opens a pull request against Tooling that adds the new serial, its URL and its
+  digest to `org/sync/deps/KEYS.txt`.
 
 ### Phase 3 — the consumers
 
