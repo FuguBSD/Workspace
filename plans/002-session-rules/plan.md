@@ -21,17 +21,17 @@ the rule lands.
 The operator approved these on 2026-09-08. This change must not reverse one
 without approval.
 
-| #   | Decision                                                                                                                                                                         |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | A workspace-only rule lives in `.claude/rules/workspace.md`. The synced root `CLAUDE.md` does not change.                                                                        |
-| 2   | One session lands one deliverable. The next deliverable starts in a new session.                                                                                                 |
-| 3   | The main session dispatches an implementer for each work package and a fixer for each review round. The panel skill of the org pack owns that rule after Tooling plan 005 lands. |
-| 4   | The main session runs at effort `high`, as a measured trial in the operator settings. The fixer keeps `xhigh`, and the reviewer runs at `high`, as Tooling plan 005 states.      |
-| 5   | The yardstick is `scripts/traces.pl`, with a `make traces` target.                                                                                                               |
+| #   | Decision                                                                                                                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A workspace-only rule lives in `.claude/rules/workspace.md`. The synced root `CLAUDE.md` does not change.                                                                                                                                 |
+| 2   | One session lands one deliverable. The next deliverable starts in a new session.                                                                                                                                                          |
+| 3   | The main session dispatches an implementer for each work package and a fixer for each review round. The org pack owns the implementer and the fixer as agent files, and the panel skill dispatches the fixer. Tooling plan 005 adds them. |
+| 4   | The main session runs at effort `high`, as a measured trial in the operator settings. The fixer keeps `xhigh`, and the reviewer runs at `high`, as Tooling plan 005 states.                                                               |
+| 5   | The yardstick is `scripts/traces.pl`, with a `make traces` target.                                                                                                                                                                        |
 
-Decision 3 repeats no text of the org pack. The rules file points at the skill
-of the org pack, and at the implementer and the fixer that Tooling plan 005
-adds.
+Decision 3 repeats no text of the org pack. The rules file points at the agent
+files `implementer.md` and `fixer.md` of the org pack. Tooling plan 005 adds
+them.
 
 ## Evidence
 
@@ -78,8 +78,9 @@ one.
 bullet:
 
 - One session lands one deliverable. Start a new session for the next one.
-- The implementation runs through the implementer agent of the org pack. The
-  skill of the org pack holds the rule.
+- The implementation runs through the implementer agent of the org pack, and
+  each review fix through its fixer agent. The agent files `implementer.md` and
+  `fixer.md` of the org pack hold the rules.
 - Name the directory in every command, with `cd` or `make -C`. The shell resets
   between calls, and the clones sit two directories down.
 - Delegate a bulk read and a whole-file write to an agent.
@@ -93,16 +94,20 @@ project instructions. The prose lint scans `.claude/`, so the file passes
 ### The yardstick
 
 `scripts/traces.pl` reads the session traces of this checkout under
-`~/.claude/projects/`. It derives a name from the checkout path. It reads every
-trace directory whose name starts with that name, so the worktrees and the
-project directories join. A `--root` option names a trace root in place of
-`~/.claude/projects/`. For each session it prints the start time, the request
-count, the peak context, and the output tokens. It also prints the panel rounds,
-the main-session edits after the first panel launch, and the sub-agent input and
-output totals. It reads the last record of each request, because the first
-record carries a partial count. It reads the sub-agent files under `subagents/`
-and `subagents/workflows/`. It uses core modules only, `JSON::PP` included, and
-`use v5.36`.
+`~/.claude/projects/`. It derives a name from the main checkout path, with the
+worktree suffix cut at the last `.claude/worktrees/` marker. It matches the
+directory of that name, the directories of its worktrees, and the directories of
+its project clones. It matches each by its exact name form, and no other prefix.
+The forms are `<name>`, `<name>--claude-worktrees-<worktree>`, and each of them
+with the suffix `-Projects-<project>`. A sibling checkout, such as a backup,
+does not join. The option `--root DIR` names a trace root in place of
+`~/.claude/projects/`. The option `--name NAME` replaces the derived name. For
+each session it prints the start time, the request count, the peak context, and
+the output tokens. It also prints the panel rounds, the main-session edits after
+the first panel launch, and the sub-agent input and output totals. It reads the
+last record of each request, because the first record carries a partial count.
+It reads the sub-agent files under `subagents/` and `subagents/workflows/`. It
+uses core modules only, `JSON::PP` included, and `use v5.36`.
 
 `make traces` runs the script from `mk/local.mk`. Four targets hold after the
 change. The peak stays under 300k, and the panel runs three rounds or fewer. The
@@ -113,16 +118,19 @@ stays under 80k tokens.
 
 The operator sets effort `high` for the main model in the user settings, as a
 measured trial. The fixer agent file of the org pack keeps `xhigh`. The reviewer
-runs at `high`, as Tooling plan 005 states. The trial runs for one merge, and
-`make traces` records the output per request and the peak. The quality effect is
-the open question, and the trial answers it with the panel findings of that
-merge.
+runs at `high`, as Tooling plan 005 states. This assumes that the `effort` field
+of an agent file overrides the user setting. The probe of Tooling plan 005
+confirms the assumption before the trial starts. The trial runs for one merge,
+and `make traces` records the output per request and the peak. The quality
+effect is the open question, and the trial answers it with the panel findings of
+that merge.
 
 ### The tests
 
-`t/ci/traces.t` runs the script with `--root` against a fixture trace directory.
-The fixture holds one session, two requests, one panel launch, and one sub-agent
-file. It asserts the peak, the round count, and the edit count.
+`t/ci/traces.t` runs the script with `--root` and `--name` against a fixture
+trace directory. The fixture holds one session, two requests, one panel launch,
+and one sub-agent file. It asserts the peak, the round count, and the edit
+count.
 
 ## Work
 
@@ -131,7 +139,10 @@ file. It asserts the peak, the round count, and the edit count.
 - `t/ci/traces.t`: the fixture test.
 - `README.md`: the command list gains `make traces`.
 - `spec/workspace.md`: the session unit.
-- `spec/DECISIONS.md`: decisions 1, 2 and 4, as records.
+- `spec/DECISIONS.md`: decisions 1, 2 and 4, as records. The record of decision
+  4 states the workspace fact only: the main session runs at effort `high` as a
+  measured trial. The agent efforts stay in Tooling plan 005, and the record
+  names no plan.
 - `spec/STATUS.md`: the row.
 - `spec/STATUS.md`: the Code roots row of workspace.md gains
   `scripts/traces.pl`, `t/ci/traces.t` and `.claude/rules/workspace.md`.
@@ -141,8 +152,8 @@ file. It asserts the peak, the round count, and the edit count.
 
 ### What lands now
 
-Every item of the Work section lands now. The implementer pointer of the rules
-file takes effect at the sync of Tooling plan 005.
+Every item of the Work section lands now. The implementer and the fixer pointers
+of the rules file take effect at the sync of Tooling plan 005.
 
 ### What waits
 
@@ -154,13 +165,9 @@ second load matters.
 The effort trial is an operator step in the user settings, outside this
 repository. Its record goes to the library, as a process learning.
 
-The rules file points at the implementer and the fixer of Tooling plan 005. The
-synced panel skill names neither agent today. The sync of that plan is the
-dependency.
-
-Tooling plan 005 defines two hooks: a lint hook on an edit, and a gate hook at
-the fixer stop. Both wait for the pilot of that plan. They are a dependency of
-this plan, not work of this repository.
+The rules file points at the agent files `implementer.md` and `fixer.md` of
+Tooling plan 005. The synced org pack holds neither agent file today. The sync
+of that plan is the dependency.
 
 ### Open questions
 
