@@ -87,7 +87,9 @@ The operator HOME holds one credential profile per Scaleway Project (D-05).
 section of `~/.aws/credentials` serves the S3 tools. The environment beats a
 profile in every Scaleway tool, so an ambient credential silently replaces a
 named profile. The per-project `.env` files are the CI-parity copies, and the
-stage skills read them.
+stage skills read them. The operator rotates a key with
+`scw config set --profile <name> access-key=<key> secret-key=<secret>`, and
+updates the matching `~/.aws/credentials` section in the same change.
 
 - **WS-PROFILES-1** — A profile must carry the short name of its Scaleway
   Project, for example `fugustx`.
@@ -99,7 +101,7 @@ stage skills read them.
 - **WS-PROFILES-4** — A command that reaches Scaleway must run without ambient
   `SCW_*` and `AWS_*` variables, except the variables it sets itself.
 - **WS-PROFILES-5** — Only the operator makes or rotates a profile, and a
-  rotation must update both HOME files. The README holds the procedure.
+  rotation must update both HOME files.
 
 <a id="ws-worktree"></a>
 
