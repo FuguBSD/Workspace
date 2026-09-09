@@ -67,8 +67,8 @@ observer set.
   it materializes the gitignored paths from the main checkout.
 - **WS-BOOTSTRAP-2** — `worktree.pl clone <path>...` materializes gitignored
   paths with no network and no `gh`. It clones a repository path, or a directory
-  of repositories like `Projects`, locally; it sets `origin` to the upstream
-  URL; it copies each `.env` in the tree, at any depth; and it copies a
+  of repositories like `Projects`, locally. It sets `origin` to the upstream
+  URL. It copies each `.env` in the tree, at any depth. It also copies a
   plain-file path, like `.env`.
 - **WS-BOOTSTRAP-3** — Clone must keep a destination that exists, so a second
   `make bootstrap MAIN=<main>` repairs a partial bootstrap and keeps local

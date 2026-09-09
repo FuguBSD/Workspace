@@ -25,6 +25,6 @@ Run each check on one command line:
 set -a; . <project path>/.env; set +a; make -C <project path> infra-status
 ```
 
-Write an observation with the `note` skill as soon as you see it: a crash loses
+Write an observation with the `note` skill as soon as you see it. A crash loses
 a held observation (LIB-HOOKS-6). Take each number from the log, never from an
 estimate. The operator contract holds the common rules.

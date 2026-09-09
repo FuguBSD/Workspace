@@ -21,6 +21,6 @@ runs none, per its decision C4, so its runbook names this stage as omitted.
    set -a; . <project path>/.env; set +a; make -C <project path> <verb>
    ```
 
-Report the loss at each checkpoint, the step count, the wall time, and the cost,
-each from the run log and never from an estimate. The operator contract holds
-the common rules.
+Report the loss at each checkpoint, the step count, the wall time, and the cost.
+Take each number from the run log, never from an estimate. The operator contract
+holds the common rules.

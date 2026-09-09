@@ -183,7 +183,7 @@ which the project repository tracks. A skill reads the runbook of the project it
 operates.
 
 - **LIB-RUNBOOK-1** — A runbook must map each shared stage name to the verb of
-  its project, and it must name each stage that the project omits.
+  its project. It must also name each stage that the project omits.
 - **LIB-RUNBOOK-2** — A runbook must hold a map, not a design. It must point at
   `train/config.env`, at `infra/persistent/RUNBOOK.md` and at `spec/`, and it
   must not restate them.

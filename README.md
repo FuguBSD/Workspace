@@ -45,10 +45,10 @@ it, because the format gate needs `bunx` before a target can run.
 
 Git worktrees live under `.claude/worktrees/` (gitignored). The hooks in
 `.claude/settings.json` replace the built-in worktree handling of Claude Code,
-per [WS-HOOKS](spec/workspace.md#ws-hooks): create bootstraps the gitignored
-paths locally, and no hook removes a worktree (D-06). `make worktree-remove` is
-the manual removal path, and `make worktree-list` shows which worktree is safe
-to remove.
+per [WS-HOOKS](spec/workspace.md#ws-hooks). The create hook bootstraps the
+gitignored paths locally, and no hook removes a worktree (D-06).
+`make worktree-remove` is the manual removal path, and `make worktree-list`
+shows which worktree is safe to remove.
 
 ## The learning library
 
