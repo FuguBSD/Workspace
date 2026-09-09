@@ -17,10 +17,10 @@ loses.
 
 ## The steps
 
-1. Write the observation to a file under `explore/`, which is gitignored:
+1. Write the observation to a file under `scratch/`, which is gitignored:
 
    ```sh
-   cat > explore/note.md <<'END'
+   cat > scratch/note.md <<'END'
    Claim: the offer probe returns three zones for the H100 type.
    Evidence: run 42, the log line that starts "offer".
    END
@@ -29,7 +29,7 @@ loses.
 2. Append it, and commit it:
 
    ```sh
-   perl scripts/wiki.pl note <session page> explore/note.md
+   perl scripts/wiki.pl note <session page> scratch/note.md
    ```
 
    The page name comes from the `SessionStart` hook. Run

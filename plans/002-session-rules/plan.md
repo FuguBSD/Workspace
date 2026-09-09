@@ -66,7 +66,7 @@ main context at 255k. Two implementer agents in session 3273b4ed made 115 and
 
 ### No tool measures a session
 
-Every figure above came from a script in the gitignored `explore/` directory.
+Every figure above came from a script in the gitignored `scratch/` directory.
 The next change has no number to compare against unless a tracked tool prints
 one.
 

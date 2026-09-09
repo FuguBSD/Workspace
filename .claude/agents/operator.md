@@ -31,7 +31,7 @@ dispatches you, and it does not edit code itself.
 - Run one step. Do not run the next stage.
 - Use an absolute path in every command.
 - Keep every secret value out of the command output. A secret goes to a
-  gitignored file under `explore/`.
+  gitignored file under `scratch/`.
 
 ## The report
 

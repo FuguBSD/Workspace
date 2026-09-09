@@ -371,7 +371,7 @@ sub repos_in {
     find({
         no_chdir => 1,
         preprocess => sub {
-            return grep { $_ ne '.git' && $_ ne 'explore' } @_;
+            return grep { $_ ne '.git' && $_ ne 'scratch' } @_;
         },
         wanted => sub {
             my $name = $File::Find::name;
