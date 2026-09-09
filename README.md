@@ -24,7 +24,3 @@ make worktree-list             # list each worktree with its age and state
 make rule-candidates           # report each undelivered rule candidate
 make check                     # run every gate; run it before each commit
 ```
-
-## Commit scopes
-
-`worktree`, `wiki`, `mk`, `spec`, `agents`.
