@@ -67,5 +67,11 @@ worktree-list:
 rule-candidates:
 	@perl scripts/wiki.pl candidates
 
+# WS-SESSION: the yardstick of the session discipline. It reads the
+# session traces under ~/.claude/projects/, so it stays out of make
+# check: no gate depends on a trace of the operator HOME.
+traces:
+	@perl scripts/traces.pl
+
 .PHONY: bootstrap clone pull list worktree worktree-remove
-.PHONY: worktree-list rule-candidates
+.PHONY: worktree-list rule-candidates traces
