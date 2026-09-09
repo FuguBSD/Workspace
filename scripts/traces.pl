@@ -9,7 +9,7 @@
 # letter, a digit or a hyphen replaced by a hyphen. This program
 # derives the name of the main checkout from the path of this file,
 # matches the trace directories of that checkout, and prints one line
-# for each session in them (WS-SESSION-5).
+# for each session in them that holds a request (WS-SESSION-5).
 #
 # The derivation cuts the path at the last .claude/worktrees/ marker,
 # because a nested checkout holds the marker more than one time
@@ -32,15 +32,23 @@
 #              included
 #     panel    the rounds of the review panel
 #     edits    the file edits of the main session after the first
-#              panel launch
+#              panel launch, outside scratch/
 #     sub-in   the input tokens of every sub-agent of the session
 #     sub-out  the output tokens of every sub-agent
+#     rev-peak the largest peak context of one panel reviewer
 #
 # One request writes one record for each content block, and each
 # record carries the usage of the whole request. An early record can
 # carry a partial count, so this program takes the usage of the last
 # record of a request (WS-SESSION-7). A tool_use block appears in one
 # record only, so each block counts one time.
+#
+# The sub-in and sub-out columns hold every sub-agent together, so
+# neither one measures one reviewer. A panel launch is a tool_use
+# block with an identifier, and each sub-agent trace has a sibling
+# <agent>.meta.json that carries the identifier of its launch. The
+# rev-peak column maps the launch identifiers of the panel to their
+# traces, and it reports the largest peak of them (WS-SESSION-8).
 #
 # Exit codes: 0 = success, 2 = usage error, other values = failure.
 
@@ -54,12 +62,14 @@ use JSON::PP       ();
 
 my $prog   = 'traces.pl';
 my $MARKER = '/.claude/worktrees/';
-my $ROW    = "%-8s  %-16s  %6s  %8s  %8s  %6s  %6s  %10s  %10s\n";
+my $ROW    = "%-8s  %-16s  %6s  %8s  %8s  %6s  %6s  %10s  %10s  %8s\n";
 
 # The tools that change a file. The panel reviews a commit, so an edit
 # of the main session after the first launch of a round is an edit
-# that no reviewer saw.
+# that no reviewer saw. A write under scratch/ is not one, because the
+# panel writes its ledger there.
 my %EDIT = map { $_ => 1 } qw(Edit Write MultiEdit NotebookEdit);
+my $SCRATCH = qr{(?:\A|/)scratch/};
 
 # The tools that launch a sub-agent.
 my %LAUNCH = map { $_ => 1 } qw(Agent Task);
@@ -83,11 +93,13 @@ sub main () {
         return;
     }
 
-    printf $ROW, qw(session start reqs peak out panel edits sub-in sub-out);
+    printf $ROW,
+        qw(session start reqs peak out panel edits sub-in sub-out rev-peak);
     for my $row (sort { $a->{start} cmp $b->{start} } @rows) {
         printf $ROW, substr($row->{id}, 0, 8), substr($row->{start}, 0, 16),
             $row->{reqs}, $row->{peak}, $row->{out}, $row->{panel},
-            $row->{edits}, $row->{sub_in}, $row->{sub_out};
+            $row->{edits}, $row->{sub_in}, $row->{sub_out},
+            $row->{rev_peak};
     }
 }
 
@@ -126,18 +138,23 @@ sub sessions ($dir) {
         next unless $row->{reqs};
         my $id = basename($path) =~ s/\.jsonl\z//r;
 
-        # A sub-agent of a workflow gets a directory of its own.
+        # A sub-agent of a workflow gets a directory of its own. The
+        # launch identifiers of the panel select the reviewers among
+        # them, so rev-peak takes the largest peak of one reviewer.
         my $sub = "$dir/$id/subagents";
-        my ($in, $out) = (0, 0);
+        my ($in, $out, $rev) = (0, 0, 0);
         for my $file (jsonl($sub), map { jsonl($_) }
             subdirs("$sub/workflows"))
         {
             my $agent = tally($file);
             $in  += $agent->{in};
             $out += $agent->{out};
+            $rev = $agent->{peak}
+                if $agent->{peak} > $rev
+                && $row->{launches}{ meta_id($file) };
         }
 
-        @{$row}{qw(id sub_in sub_out)} = ($id, $in, $out);
+        @{$row}{qw(id sub_in sub_out rev_peak)} = ($id, $in, $out, $rev);
         push @rows, $row;
     }
     return @rows;
@@ -146,7 +163,7 @@ sub sessions ($dir) {
 # The measures of one trace file.
 sub tally ($path) {
     my %row = (start => '', reqs => 0, peak => 0, in => 0, out => 0,
-        panel => 0, edits => 0);
+        panel => 0, edits => 0, launches => {});
     open my $fh, '<:encoding(UTF-8)', $path or return \%row;
 
     my (%usage, @order, %round);
@@ -179,8 +196,10 @@ sub tally ($path) {
             if (is_panel($block)) {
                 $launched = 1;
                 $round{$req} = 1;
+                $row{launches}{ $block->{id} } = 1
+                    if length($block->{id} // '');
             } elsif ($launched && $EDIT{ $block->{name} // '' }) {
-                $row{edits}++;
+                $row{edits}++ unless in_scratch($block);
             }
         }
     }
@@ -208,6 +227,16 @@ sub usage_of ($rec) {
     return [$in, $u->{output_tokens} // 0];
 }
 
+# True when one edit block targets a path under scratch/. The target
+# is file_path, or notebook_path for a notebook. A relative path and
+# an absolute path both carry the directory in the same place. A block
+# with no target counts as an edit, which is the safe direction.
+sub in_scratch ($block) {
+    my $input = $block->{input} // {};
+    my $path  = $input->{file_path} // $input->{notebook_path} // '';
+    return $path =~ $SCRATCH ? 1 : 0;
+}
+
 # One launch of one panel member. The panel dispatches a reviewer
 # agent, and the description of each member names the panel.
 sub is_panel ($block) {
@@ -215,6 +244,19 @@ sub is_panel ($block) {
     my $input = $block->{input} // {};
     return 1 if ($input->{subagent_type} // '') eq 'reviewer';
     return ($input->{description} // '') =~ /panel/i ? 1 : 0;
+}
+
+# The launch identifier of one sub-agent trace. The trace has a
+# sibling meta file, and the file names the tool_use block that
+# launched the sub-agent. A trace with no meta file gives the empty
+# string, which matches no launch.
+sub meta_id ($path) {
+    my $meta = $path =~ s/\.jsonl\z/.meta.json/r;
+    open my $fh, '<:encoding(UTF-8)', $meta or return '';
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $rec = eval { $JSON->decode($text // '') };
+    return ref $rec eq 'HASH' ? $rec->{toolUseId} // '' : '';
 }
 
 # The trace files directly in one directory. A directory that is

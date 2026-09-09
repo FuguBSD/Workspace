@@ -6,11 +6,15 @@
 # The test makes a fixture trace root in a temp tree and runs the
 # script with --root and --name. The root holds the checkout, one
 # worktree of it, one project clone in it, and one sibling checkout
-# that must stay out. No test reads the operator HOME, and no test
-# writes outside its temp tree.
+# that must stay out. The last test copies the script into a nested
+# marker path and runs it with --root only, which reaches the name
+# derivation. No test reads the operator HOME, and no test writes
+# outside its temp tree.
 
 use v5.36;
 use Test::More;
+use Cwd        qw(abs_path);
+use File::Copy qw(copy);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin    qw($RealBin);
@@ -67,6 +71,14 @@ sub _record ( $req, $context, $out, @blocks )
 	) . "\n";
 }
 
+# _meta($path, $tool):
+#	The meta file of one sub-agent trace. It carries the
+#	identifier of the tool_use block that launched the sub-agent.
+sub _meta ( $path, $tool )
+{
+	_write( $path, $json->encode( { toolUseId => $tool } ) . "\n" );
+}
+
 # _session($id):
 #	A one-request trace, as the smallest session that gets a row.
 sub _session ($id)
@@ -90,36 +102,60 @@ my $main = "$root/fixture";
 my $id   = '11111111-1111-1111-1111-111111111111';
 
 # The main session: one leading record that carries the start time,
-# then two requests. Request A writes three records, because one
-# record carries one content block. Its Edit comes before the panel
-# launch, so no count takes it. Request B holds the larger context,
-# and its two edits come after the launch.
+# then three requests. Request A writes three records, because one
+# record carries one content block. Its first two records carry a
+# partial count, and its last record carries the full count, which
+# holds the peak of the file. Its Edit comes before the panel launch,
+# so no count takes it. Request B holds two edits after the launch.
+# Request C writes two files under scratch/, one path relative and one
+# path absolute, which no count takes.
 _write(
 	"$main/$id.jsonl",
 	$json->encode(
 		{ type => 'user', timestamp => '2026-09-09T09:59:00.000Z' }
 	  )
 	    . "\n"
-	    . _record( 'req_a', [ 10, 100, 1000 ], 50,
+	    . _record( 'req_a', [ 1, 20, 300 ], 5,
 		{ type => 'text', text => 'x' } )
-	    . _record( 'req_a', [ 10, 100, 1000 ], 50, _tool('Edit') )
+	    . _record( 'req_a', [ 2, 30, 400 ], 10, _tool('Edit') )
 	    . _record(
 		'req_a',
-		[ 10, 100, 1000 ],
-		50,
+		[ 30, 300, 3000 ],
+		70,
 		_tool( 'Agent', description => 'Panel review member 1' )
 	    )
 	    . _record( 'req_b', [ 20, 200, 2000 ], 60, _tool('Edit'),
 		_tool('Write') )
+	    . _record(
+		'req_c',
+		[ 5, 50, 500 ],
+		10,
+		_tool( 'Write', file_path => 'scratch/review/ledger.md' ),
+		_tool(
+			'NotebookEdit',
+			notebook_path => "$main/scratch/note.ipynb"
+		)
+	    )
 );
 
-# One sub-agent, with one request over two records.
+# Two sub-agents of the session. Agent A1 is the panel member: its
+# meta file names the launch of request A, and _tool gives that block
+# the identifier toolu_Agent. A1 holds two requests, one of them over
+# two records, so its peak is smaller than its input total. Agent A2
+# holds the larger peak, and its meta file names another launch, so
+# rev-peak must leave A2 out.
 _write(
 	"$main/$id/subagents/agent-a1.jsonl",
-	_record( 'req_s', [ 7, 70, 700 ], 5,
+	_record( 'req_s1', [ 7, 70, 700 ], 5,
 		{ type => 'text', text => 'x' } )
-	    . _record( 'req_s', [ 7, 70, 700 ], 5, _tool('Read') )
+	    . _record( 'req_s1', [ 7, 70, 700 ], 5, _tool('Read') )
+	    . _record( 'req_s2', [ 8, 80, 800 ], 6, _tool('Read') )
 );
+_meta( "$main/$id/subagents/agent-a1.meta.json", 'toolu_Agent' );
+
+_write( "$main/$id/subagents/agent-a2.jsonl",
+	_record( 'req_t', [ 90, 900, 9000 ], 7, _tool('Read') ) );
+_meta( "$main/$id/subagents/agent-a2.meta.json", 'toolu_other' );
 
 # One worktree of the checkout, one project clone in it, and one
 # sibling checkout that the match must reject.
@@ -137,13 +173,15 @@ ok( $row, 'the main session gets a row' ) or diag $out;
 my @field = split q{ }, $row // q{};
 
 is( $field[1], '2026-09-09T09:59', 'the start time is the first record' );
-is( $field[2], 2,                  'the record count is a request count' );
-is( $field[3], 2220,      'the peak is the largest context of one request' );
-is( $field[4], 110,       'the output of one request counts one time' );
+is( $field[2], 3,                  'the record count is a request count' );
+is( $field[3], 3330,      'the peak reads the last record of a request' );
+is( $field[4], 140,       'the output reads the last record of a request' );
 is( $field[5], 1,         'one panel launch is one round' );
-is( $field[6], 2,         'an edit before the launch does not count' );
-is( $field[7], 777,       'the sub-agent input counts one time' );
-is( $field[8], 5,         'the sub-agent output counts one time' );
+is( $field[6], 2,
+	'an edit before the launch, and a write under scratch/, do not count' );
+is( $field[7], 11655,     'the sub-agent input counts one time' );
+is( $field[8], 18,        'the sub-agent output counts one time' );
+is( $field[9], 888,       'rev-peak reads the peak of the panel member' );
 
 like( $out, qr/^22222222/m, 'a worktree of the checkout joins' );
 like( $out, qr/^44444444/m, 'a project clone joins' );
@@ -152,5 +190,27 @@ unlike( $out, qr/^33333333/m, 'a sibling checkout stays out' );
 my ( $none_code, $none_out ) = _traces( $root, 'absent' );
 is( $none_code, 0, 'a name with no trace directory exits zero' );
 like( $none_out, qr/^no session of absent$/m, 'and it reports none' );
+
+# Without --name, the script derives the name from its own path, cut
+# at the last .claude/worktrees/ marker (WS-SESSION-6, WS-HOOKS-4).
+# The copy sits under two markers. The last marker names the inner
+# checkout, and the first one names the outer checkout, whose trace
+# directory must stay out.
+my $nest = tempdir( CLEANUP => 1 );
+my $deep = "$nest/.claude/worktrees/a/.claude/worktrees/b";
+make_path("$deep/scripts");
+copy( $script, "$deep/scripts/traces.pl" ) or die "copy: $!";
+
+my $outer = abs_path($nest) =~ s/[^A-Za-z0-9-]/-/gr;
+my $inner = abs_path("$nest/.claude/worktrees/a") =~ s/[^A-Za-z0-9-]/-/gr;
+_write( "$nest/traces/$inner/55555555-5555.jsonl", _session('n') );
+_write( "$nest/traces/$outer/66666666-6666.jsonl", _session('o') );
+
+my $deep_out =
+	qx("$^X" "$deep/scripts/traces.pl" --root "$nest/traces" 2>&1);
+is( $? >> 8, 0, 'the derived name exits zero' );
+like( $deep_out, qr/^55555555/m, 'the derivation cuts at the last marker' )
+	or diag $deep_out;
+unlike( $deep_out, qr/^66666666/m, 'and the outer checkout stays out' );
 
 done_testing();
