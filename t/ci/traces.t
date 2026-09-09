@@ -1,15 +1,16 @@
 #!/usr/bin/env perl
 # ex:ts=8 sw=4:
 # Tests for scripts/traces.pl (WS-SESSION-5, WS-SESSION-6,
-# WS-SESSION-7).
+# WS-SESSION-7, WS-SESSION-8).
 #
 # The test makes a fixture trace root in a temp tree and runs the
 # script with --root and --name. The root holds the checkout, one
 # worktree of it, one project clone in it, and one sibling checkout
-# that must stay out. The last test copies the script into a nested
-# marker path and runs it with --root only, which reaches the name
-# derivation. No test reads the operator HOME, and no test writes
-# outside its temp tree.
+# that must stay out. The checkout holds one session with no request,
+# and two sessions that hold a scratch path. The last test copies the
+# script into a nested marker path and runs it with --root only, which
+# reaches the name derivation. No test reads the operator HOME, and no
+# test writes outside its temp tree.
 
 use v5.36;
 use Test::More;
@@ -157,6 +158,36 @@ _write( "$main/$id/subagents/agent-a2.jsonl",
 	_record( 'req_t', [ 90, 900, 9000 ], 7, _tool('Read') ) );
 _meta( "$main/$id/subagents/agent-a2.meta.json", 'toolu_other' );
 
+# A session that holds records but no assistant record never reached
+# the model, so it gets no row (WS-SESSION-5).
+my $quiet = $json->encode(
+	{ type => 'user', timestamp => '2026-09-09T10:01:00.000Z' } );
+_write( "$main/77777777-7777.jsonl", "$quiet\n$quiet\n" );
+
+# Two more sessions of the checkout, each one with a panel launch and
+# then the writes of a scratch path. Session 8 holds the two files that
+# .gitignore covers, and the edits column must take neither one.
+# Session 9 holds three near misses, and it must take every one: the
+# name must start a path segment, and a scratchpad must end the path
+# (WS-SESSION-8).
+_write(
+	"$main/88888888-8888.jsonl",
+	_record( 'req_p1', [ 1, 2, 3 ], 4,
+		_tool( 'Agent', description => 'Panel review member 1' ) )
+	    . _record( 'req_p2', [ 1, 2, 3 ], 4,
+		_tool( 'Write', file_path => 'SCRATCHPAD-1.md' ),
+		_tool( 'Write', file_path => "$main/SCRATCHPAD-2.md" ) )
+);
+_write(
+	"$main/99999999-9999.jsonl",
+	_record( 'req_n1', [ 1, 2, 3 ], 4,
+		_tool( 'Agent', description => 'Panel review member 1' ) )
+	    . _record( 'req_n2', [ 1, 2, 3 ], 4,
+		_tool( 'Write', file_path => 'myscratch/x.md' ),
+		_tool( 'Write', file_path => 'NOTSCRATCHPAD.md' ),
+		_tool( 'Write', file_path => 'SCRATCHPAD-3.md.bak' ) )
+);
+
 # One worktree of the checkout, one project clone in it, and one
 # sibling checkout that the match must reject.
 _write( "$root/fixture--claude-worktrees-w1/22222222-2222.jsonl",
@@ -186,6 +217,14 @@ is( $field[9], 888,       'rev-peak reads the peak of the panel member' );
 like( $out, qr/^22222222/m, 'a worktree of the checkout joins' );
 like( $out, qr/^44444444/m, 'a project clone joins' );
 unlike( $out, qr/^33333333/m, 'a sibling checkout stays out' );
+
+unlike( $out, qr/^77777777/m, 'a session with no request gets no row' );
+
+my @pad  = split q{ }, ( grep { /^88888888\b/ } split /\n/, $out )[0] // q{};
+my @near = split q{ }, ( grep { /^99999999\b/ } split /\n/, $out )[0] // q{};
+is( $pad[6], 0, 'a SCRATCHPAD*.md write is not an edit' ) or diag $out;
+is( $near[6], 3, 'a near miss of the scratch pattern is an edit' )
+	or diag $out;
 
 my ( $none_code, $none_out ) = _traces( $root, 'absent' );
 is( $none_code, 0, 'a name with no trace directory exits zero' );

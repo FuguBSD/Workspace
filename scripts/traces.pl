@@ -32,7 +32,7 @@
 #              included
 #     panel    the rounds of the review panel
 #     edits    the file edits of the main session after the first
-#              panel launch, outside scratch/
+#              panel launch, outside scratch/ and SCRATCHPAD*.md
 #     sub-in   the input tokens of every sub-agent of the session
 #     sub-out  the output tokens of every sub-agent
 #     rev-peak the largest peak context of one panel reviewer
@@ -66,10 +66,12 @@ my $ROW    = "%-8s  %-16s  %6s  %8s  %8s  %6s  %6s  %10s  %10s  %8s\n";
 
 # The tools that change a file. The panel reviews a commit, so an edit
 # of the main session after the first launch of a round is an edit
-# that no reviewer saw. A write under scratch/ is not one, because the
-# panel writes its ledger there.
+# that no reviewer saw. A write to scratch space is not one: the panel
+# writes its ledger under scratch/, an audit writes its findings to a
+# SCRATCHPAD-<N>.md file, and .gitignore holds both. Neither one is a
+# repository file (WS-SESSION-8).
 my %EDIT = map { $_ => 1 } qw(Edit Write MultiEdit NotebookEdit);
-my $SCRATCH = qr{(?:\A|/)scratch/};
+my $SCRATCH = qr{(?:\A|/)(?:scratch/|SCRATCHPAD[^/]*\.md\z)};
 
 # The tools that launch a sub-agent.
 my %LAUNCH = map { $_ => 1 } qw(Agent Task);
@@ -227,10 +229,13 @@ sub usage_of ($rec) {
     return [$in, $u->{output_tokens} // 0];
 }
 
-# True when one edit block targets a path under scratch/. The target
-# is file_path, or notebook_path for a notebook. A relative path and
-# an absolute path both carry the directory in the same place. A block
-# with no target counts as an edit, which is the safe direction.
+# True when one edit block targets scratch space: a path under
+# scratch/, or a SCRATCHPAD*.md file. The name must start a path
+# segment and the scratchpad must end the path, so myscratch/x.md,
+# NOTSCRATCHPAD.md and SCRATCHPAD-3.md.bak stay edits. The target is
+# file_path, or notebook_path for a notebook. A relative path and an
+# absolute path both carry the name in the same place. A block with no
+# target counts as an edit, which is the safe direction.
 sub in_scratch ($block) {
     my $input = $block->{input} // {};
     my $path  = $input->{file_path} // $input->{notebook_path} // '';

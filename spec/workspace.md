@@ -142,9 +142,10 @@ columns are:
 
 - the main session: the identifier, the start time, the request count, the peak
   context and the output tokens;
-- the review panel: the rounds, the main-session edits outside `scratch/` after
-  the first panel launch, and the largest peak context of one panel reviewer;
-- the sub-agents: the input total and the output total.
+- the review panel: the rounds, and the main-session edits outside `scratch/`
+  and `SCRATCHPAD*.md` after the first panel launch;
+- the sub-agents: the input total, the output total, and the largest peak
+  context of one panel reviewer.
 
 The round cap of the panel lives in the `review-panel` skill of the org pack.
 
