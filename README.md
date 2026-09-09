@@ -22,5 +22,6 @@ make worktree NAME=<n>         # create and bootstrap a worktree
 make worktree-remove NAME=<n>  # remove a worktree, after a manual decision
 make worktree-list             # list each worktree with its age and state
 make rule-candidates           # report each undelivered rule candidate
+make traces                    # measure the sessions of this checkout
 make check                     # run every gate; run it before each commit
 ```

@@ -28,6 +28,7 @@ phase applies.
 | [WS-BOOTSTRAP](workspace.md#ws-bootstrap) | done    | —       | [local.mk](../mk/local.mk), [worktree.pl](../scripts/worktree.pl)                                                                                                                                                                                                                                                  |
 | [WS-PROFILES](workspace.md#ws-profiles)   | done    | —       | The operator makes the HOME files by hand. [worktree.pl](../scripts/worktree.pl) writes no settings file, and [worktree.t](../t/ci/worktree.t) proves the clone step writes none and the make fragment holds no settings step (WS-PROFILES-3).                                                                     |
 | [WS-WORKTREE](workspace.md#ws-worktree)   | done    | —       | [worktree.pl](../scripts/worktree.pl), [worktree.t](../t/ci/worktree.t)                                                                                                                                                                                                                                            |
+| [WS-SESSION](workspace.md#ws-session)     | partial | —       | [traces.pl](../scripts/traces.pl), [traces.t](../t/ci/traces.t), [local.mk](../mk/local.mk), [workspace.md](../.claude/rules/workspace.md). Absent: WS-SESSION-4, an operator setting outside this repository, and WS-SESSION-8, the targets that a merge report must meet.                                        |
 | [WS-HOOKS](workspace.md#ws-hooks)         | done    | —       | [settings.json](../.claude/settings.json)                                                                                                                                                                                                                                                                          |
 | [LIB-LIBRARY](library.md#lib-library)     | done    | —       | [wiki.pl](../scripts/wiki.pl) clones `FuguBSD/Wiki`, which is public. Its own `check.yml` runs the prose gate and the secret gate, and a probe confirms the ruleset rejects a force push.                                                                                                                          |
 | [LIB-PAGES](library.md#lib-pages)         | done    | —       | [wiki.pl](../scripts/wiki.pl), [wiki.t](../t/ci/wiki.t)                                                                                                                                                                                                                                                            |
@@ -54,10 +55,10 @@ The drift gate maps each document to the code that implements it. Two documents
 share the `scripts`, `mk` and `.claude/settings.json` roots, so each row names
 the paths that its document owns.
 
-| Document     | Roots                                                                                                                      |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| workspace.md | `scripts/worktree.pl`, `mk`, `.claude/settings.json`, `.gitignore`, `.toolingrc`, `t/ci/worktree.t`, `t/ci/deps.t`, `deps` |
-| library.md   | `scripts/wiki.pl`, `mk`, `.claude/settings.json`, `.claude/agents`, `.claude/skills`, `t/ci/wiki.t`                        |
+| Document     | Roots                                                                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| workspace.md | `scripts/worktree.pl`, `scripts/traces.pl`, `mk`, `.claude/settings.json`, `.claude/rules/workspace.md`, `.gitignore`, `.toolingrc`, `t/ci/worktree.t`, `t/ci/deps.t`, `t/ci/traces.t`, `deps` |
+| library.md   | `scripts/wiki.pl`, `mk`, `.claude/settings.json`, `.claude/agents`, `.claude/skills`, `t/ci/wiki.t`                                                                                            |
 
 ## Retired IDs
 

@@ -128,6 +128,51 @@ updates the matching `~/.aws/credentials` section in the same change.
   in days and its state. The state names an uncommitted change and an unpushed
   commit, so an operator can see which worktree is safe to remove.
 
+<a id="ws-session"></a>
+
+## The session
+
+A session of this checkout carries its whole context for hours, and the output
+of the model stays in that context. A second task in one session therefore pays
+for the context of the first one. `.claude/rules/workspace.md` holds the session
+rules, because the org pack of FuguBSD/Tooling owns the root `CLAUDE.md`.
+`scripts/traces.pl` is the yardstick. It reads the session traces of the
+operator HOME, and it prints one line for each session. The columns are:
+
+- the main session: the identifier, the start time, the request count, the peak
+  context and the output tokens;
+- the review panel: the rounds, and the main-session edits after the first panel
+  launch;
+- the sub-agents: the input total and the output total.
+
+The round cap of the panel lives in the `review-panel` skill of the org pack.
+
+- **WS-SESSION-1** — `.claude/rules/workspace.md` must hold the workspace-only
+  session rules, and must carry no `paths` field, so Claude Code loads it at
+  each launch (D-10).
+- **WS-SESSION-2** — A session must land one deliverable, and the next
+  deliverable must start in a new session (D-11).
+- **WS-SESSION-3** — The main session must dispatch an `implementer` agent for
+  each work package, and a `fixer` agent for each review fix. The agent files of
+  the org pack hold the rules of the two agents.
+- **WS-SESSION-4** — The main model must run at effort `high`, as a measured
+  trial (D-12). The operator sets the effort in the user settings, outside this
+  repository.
+- **WS-SESSION-5** — `make traces` must run `scripts/traces.pl`. The script must
+  print one line for each session, with the columns above.
+- **WS-SESSION-6** — The script must derive the checkout name from its own path,
+  cut at the last `.claude/worktrees/` marker. It must read the trace directory
+  of the checkout, of each worktree of it, and of each project clone in either.
+  A match must take an exact name form, so a sibling checkout stays out.
+- **WS-SESSION-7** — The usage of one request must count one time. One request
+  writes one record for each content block, so the script must read the last
+  record of the request.
+- **WS-SESSION-8** — The report must meet four targets:
+  - The peak context of the main session stays under 300k tokens.
+  - The main session makes no edit after the first panel launch.
+  - The review panel runs three rounds or fewer.
+  - One reviewer stays under 80k tokens.
+
 <a id="ws-hooks"></a>
 
 ## Claude Code hooks
