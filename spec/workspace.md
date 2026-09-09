@@ -142,12 +142,15 @@ columns are:
 
 - the main session: the identifier, the start time, the request count, the peak
   context and the output tokens;
-- the review panel: the rounds, and the main-session edits outside `scratch/`
-  and `SCRATCHPAD*.md` after the first panel launch;
+- the review panel: the rounds, and the main-session edits after the first panel
+  launch, inside the checkout and outside `scratch/` and `SCRATCHPAD*.md`;
 - the sub-agents: the input total, the output total, and the largest peak
   context of one panel reviewer.
 
 The round cap of the panel lives in the `review-panel` skill of the org pack.
+The bar of `rev-peak` is 120k tokens. It stays above the cost of a reviewer that
+reads one change set, and below the third quartile of the measured history. A
+wide reviewer therefore breaks the bar, and a normal reviewer does not.
 
 - **WS-SESSION-1** — `.claude/rules/workspace.md` must hold the workspace-only
   session rules, and must carry no `paths` field, so Claude Code loads it at
@@ -174,7 +177,7 @@ The round cap of the panel lives in the `review-panel` skill of the org pack.
   - The peak context of the main session stays under 300k tokens.
   - The main session edits no repository file after the first panel launch.
   - The review panel runs three rounds or fewer.
-  - The `rev-peak` column stays under 80k tokens.
+  - The `rev-peak` column stays under 120k tokens.
 
 <a id="ws-hooks"></a>
 

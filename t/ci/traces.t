@@ -7,10 +7,17 @@
 # script with --root and --name. The root holds the checkout, one
 # worktree of it, one project clone in it, and one sibling checkout
 # that must stay out. The checkout holds one session with no request,
-# and two sessions that hold a scratch path. The last test copies the
-# script into a nested marker path and runs it with --root only, which
-# reaches the name derivation. No test reads the operator HOME, and no
-# test writes outside its temp tree.
+# two sessions that hold a scratch path, three sessions that hold an
+# edit path of one boundary, and one session that launches a catch-all
+# agent type. The last test copies the script into a nested marker
+# path and runs it with --root only, which reaches the name
+# derivation.
+#
+# A boundary session names a path of the real checkout, because the
+# script derives the boundary from its own location. The test derives
+# the same path, so no assertion holds an operator path. Such a path
+# is one string of one fixture record: no test reads the operator
+# HOME, and no test writes outside its temp tree.
 
 use v5.36;
 use Test::More;
@@ -102,14 +109,34 @@ my $root = tempdir( CLEANUP => 1 );
 my $main = "$root/fixture";
 my $id   = '11111111-1111-1111-1111-111111111111';
 
+# The path of the checkout that the script derives from its own
+# location, cut at the last .claude/worktrees/ marker (WS-SESSION-6).
+# The edits column takes a file inside this path only, so each
+# boundary case builds its path from the same derivation.
+my $checkout = abs_path("$RealBin/../..");
+my $marker   = rindex( $checkout, '/.claude/worktrees/' );
+$checkout = substr( $checkout, 0, $marker ) if $marker >= 0;
+
+# The fixer of round 1. Its description holds the word panel, and its
+# type names another role, so neither the panel count nor rev-peak
+# takes it. _tool derives the identifier from the tool name, so the
+# fixer needs an identifier of its own, apart from the panel launch.
+my $fixer = _tool(
+	'Agent',
+	subagent_type => 'fixer',
+	description   => 'Panel round 1 fixer'
+);
+$fixer->{id} = 'toolu_fixer';
+
 # The main session: one leading record that carries the start time,
 # then three requests. Request A writes three records, because one
 # record carries one content block. Its first two records carry a
 # partial count, and its last record carries the full count, which
 # holds the peak of the file. Its Edit comes before the panel launch,
-# so no count takes it. Request B holds two edits after the launch.
-# Request C writes two files under scratch/, one path relative and one
-# path absolute, which no count takes.
+# so no count takes it. Request B holds two edits after the launch,
+# and the launch of the fixer. Request C writes two files under
+# scratch/, one path relative and one path absolute inside the
+# checkout, which no count takes.
 _write(
 	"$main/$id.jsonl",
 	$json->encode(
@@ -126,7 +153,7 @@ _write(
 		_tool( 'Agent', description => 'Panel review member 1' )
 	    )
 	    . _record( 'req_b', [ 20, 200, 2000 ], 60, _tool('Edit'),
-		_tool('Write') )
+		_tool('Write'), $fixer )
 	    . _record(
 		'req_c',
 		[ 5, 50, 500 ],
@@ -134,12 +161,12 @@ _write(
 		_tool( 'Write', file_path => 'scratch/review/ledger.md' ),
 		_tool(
 			'NotebookEdit',
-			notebook_path => "$main/scratch/note.ipynb"
+			notebook_path => "$checkout/scratch/note.ipynb"
 		)
 	    )
 );
 
-# Two sub-agents of the session. Agent A1 is the panel member: its
+# The sub-agents of the session. Agent A1 is the panel member: its
 # meta file names the launch of request A, and _tool gives that block
 # the identifier toolu_Agent. A1 holds two requests, one of them over
 # two records, so its peak is smaller than its input total. Agent A2
@@ -158,6 +185,13 @@ _write( "$main/$id/subagents/agent-a2.jsonl",
 	_record( 'req_t', [ 90, 900, 9000 ], 7, _tool('Read') ) );
 _meta( "$main/$id/subagents/agent-a2.meta.json", 'toolu_other' );
 
+# The trace of the fixer. Its peak is larger than the peak of A1, and
+# its meta file names the launch of the fixer, so rev-peak must leave
+# it out. The sub-agent totals hold it, as they hold every sub-agent.
+_write( "$main/$id/subagents/agent-f1.jsonl",
+	_record( 'req_f', [ 10, 100, 1000 ], 8, _tool('Read') ) );
+_meta( "$main/$id/subagents/agent-f1.meta.json", 'toolu_fixer' );
+
 # A session that holds records but no assistant record never reached
 # the model, so it gets no row (WS-SESSION-5).
 my $quiet = $json->encode(
@@ -166,7 +200,8 @@ _write( "$main/77777777-7777.jsonl", "$quiet\n$quiet\n" );
 
 # Two more sessions of the checkout, each one with a panel launch and
 # then the writes of a scratch path. Session 8 holds the two files that
-# .gitignore covers, and the edits column must take neither one.
+# .gitignore covers, one path relative and one path absolute inside
+# the checkout, and the edits column must take neither one.
 # Session 9 holds three near misses, and it must take every one: the
 # name must start a path segment, and a scratchpad must end the path
 # (WS-SESSION-8).
@@ -176,7 +211,7 @@ _write(
 		_tool( 'Agent', description => 'Panel review member 1' ) )
 	    . _record( 'req_p2', [ 1, 2, 3 ], 4,
 		_tool( 'Write', file_path => 'SCRATCHPAD-1.md' ),
-		_tool( 'Write', file_path => "$main/SCRATCHPAD-2.md" ) )
+		_tool( 'Write', file_path => "$checkout/SCRATCHPAD-2.md" ) )
 );
 _write(
 	"$main/99999999-9999.jsonl",
@@ -186,6 +221,57 @@ _write(
 		_tool( 'Write', file_path => 'myscratch/x.md' ),
 		_tool( 'Write', file_path => 'NOTSCRATCHPAD.md' ),
 		_tool( 'Write', file_path => 'SCRATCHPAD-3.md.bak' ) )
+);
+
+# Three sessions of the checkout boundary, each one with a panel
+# launch and then one write. The edits column counts a repository file
+# of the measured checkout only (WS-SESSION-8). Session B writes a
+# file inside the checkout, which is one. Session C writes the memory
+# file of a session, under a .claude/projects/ path of the operator
+# HOME in shape, which is none. Session D writes a file of a sibling
+# checkout, which is none, as the directory match rejects the sibling.
+_write(
+	"$main/bbbbbbbb-bbbb.jsonl",
+	_record( 'req_b1', [ 1, 2, 3 ], 4,
+		_tool( 'Agent', description => 'Panel review member 1' ) )
+	    . _record( 'req_b2', [ 1, 2, 3 ], 4,
+		_tool( 'Write', file_path => "$checkout/spec/workspace.md" ) )
+);
+_write(
+	"$main/cccccccc-cccc.jsonl",
+	_record( 'req_c1', [ 1, 2, 3 ], 4,
+		_tool( 'Agent', description => 'Panel review member 1' ) )
+	    . _record(
+		'req_c2',
+		[ 1, 2, 3 ],
+		4,
+		_tool(
+			'Write',
+			file_path => "$root/.claude/projects"
+			    . '/-x-Work-FuguBSD/memory/session-rules.md'
+		)
+	    )
+);
+_write(
+	"$main/dddddddd-dddd.jsonl",
+	_record( 'req_d1', [ 1, 2, 3 ], 4,
+		_tool( 'Agent', description => 'Panel review member 1' ) )
+	    . _record( 'req_d2', [ 1, 2, 3 ], 4,
+		_tool( 'Write',
+			file_path => "$checkout-backup/spec/workspace.md" ) )
+);
+
+# One session of the panel of an early campaign, before the org pack
+# shipped a reviewer agent. The launch carries a catch-all type, which
+# names no role, so the description decides and the launch is a round.
+_write(
+	"$main/aaaaaaaa-aaaa.jsonl",
+	_record( 'req_c1', [ 1, 2, 3 ], 4,
+		_tool(
+			'Agent',
+			subagent_type => 'general-purpose',
+			description   => 'Panel review member 1'
+		) )
 );
 
 # One worktree of the checkout, one project clone in it, and one
@@ -207,12 +293,12 @@ is( $field[1], '2026-09-09T09:59', 'the start time is the first record' );
 is( $field[2], 3,                  'the record count is a request count' );
 is( $field[3], 3330,      'the peak reads the last record of a request' );
 is( $field[4], 140,       'the output reads the last record of a request' );
-is( $field[5], 1,         'one panel launch is one round' );
+is( $field[5], 1,         'a panel launch is a round, a fixer is not' );
 is( $field[6], 2,
 	'an edit before the launch, and a write under scratch/, do not count' );
-is( $field[7], 11655,     'the sub-agent input counts one time' );
-is( $field[8], 18,        'the sub-agent output counts one time' );
-is( $field[9], 888,       'rev-peak reads the peak of the panel member' );
+is( $field[7], 12765,     'the sub-agent input counts one time' );
+is( $field[8], 26,        'the sub-agent output counts one time' );
+is( $field[9], 888,       'rev-peak takes the panel member, not the fixer' );
 
 like( $out, qr/^22222222/m, 'a worktree of the checkout joins' );
 like( $out, qr/^44444444/m, 'a project clone joins' );
@@ -224,6 +310,19 @@ my @pad  = split q{ }, ( grep { /^88888888\b/ } split /\n/, $out )[0] // q{};
 my @near = split q{ }, ( grep { /^99999999\b/ } split /\n/, $out )[0] // q{};
 is( $pad[6], 0, 'a SCRATCHPAD*.md write is not an edit' ) or diag $out;
 is( $near[6], 3, 'a near miss of the scratch pattern is an edit' )
+	or diag $out;
+
+my @in   = split q{ }, ( grep { /^bbbbbbbb\b/ } split /\n/, $out )[0] // q{};
+my @home = split q{ }, ( grep { /^cccccccc\b/ } split /\n/, $out )[0] // q{};
+my @sib  = split q{ }, ( grep { /^dddddddd\b/ } split /\n/, $out )[0] // q{};
+is( $in[6], 1, 'a write inside the checkout is an edit' ) or diag $out;
+is( $home[6], 0, 'a write to the operator HOME is not an edit' )
+	or diag $out;
+is( $sib[6], 0, 'a write to a sibling checkout is not an edit' )
+	or diag $out;
+
+my @cat = split q{ }, ( grep { /^aaaaaaaa\b/ } split /\n/, $out )[0] // q{};
+is( $cat[5], 1, 'a catch-all agent type falls back to the description' )
 	or diag $out;
 
 my ( $none_code, $none_out ) = _traces( $root, 'absent' );

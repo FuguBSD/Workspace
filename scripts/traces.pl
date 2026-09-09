@@ -32,7 +32,8 @@
 #              included
 #     panel    the rounds of the review panel
 #     edits    the file edits of the main session after the first
-#              panel launch, outside scratch/ and SCRATCHPAD*.md
+#              panel launch: a file inside the checkout, outside
+#              scratch/ and SCRATCHPAD*.md
 #     sub-in   the input tokens of every sub-agent of the session
 #     sub-out  the output tokens of every sub-agent
 #     rev-peak the largest peak context of one panel reviewer
@@ -66,15 +67,26 @@ my $ROW    = "%-8s  %-16s  %6s  %8s  %8s  %6s  %6s  %10s  %10s  %8s\n";
 
 # The tools that change a file. The panel reviews a commit, so an edit
 # of the main session after the first launch of a round is an edit
-# that no reviewer saw. A write to scratch space is not one: the panel
-# writes its ledger under scratch/, an audit writes its findings to a
-# SCRATCHPAD-<N>.md file, and .gitignore holds both. Neither one is a
-# repository file (WS-SESSION-8).
+# that no reviewer saw. Only a repository file of the measured
+# checkout is one (WS-SESSION-8). A write outside the checkout is no
+# repository file: the operator HOME, a dotfile and another project
+# all sit outside it. A write to scratch space is no repository file
+# either: the panel writes its ledger under scratch/, an audit writes
+# its findings to a SCRATCHPAD-<N>.md file, and .gitignore holds both.
 my %EDIT = map { $_ => 1 } qw(Edit Write MultiEdit NotebookEdit);
 my $SCRATCH = qr{(?:\A|/)(?:scratch/|SCRATCHPAD[^/]*\.md\z)};
 
 # The tools that launch a sub-agent.
 my %LAUNCH = map { $_ => 1 } qw(Agent Task);
+
+# The agent types that name no role. A launch of one of them holds the
+# role of the agent in its description only.
+my %CATCHALL = map { $_ => 1 } qw(general-purpose claude);
+
+# The main checkout that holds this file. The trace name comes from
+# the path, and the edits column takes a file inside the path only,
+# so the program derives it one time.
+my $CHECKOUT = checkout();
 
 my $JSON = JSON::PP->new;
 
@@ -85,7 +97,7 @@ sub main () {
     GetOptions('root=s' => \$root, 'name=s' => \$name) or usage();
     usage() if @ARGV;
     $root //= ($ENV{HOME} // '.') . '/.claude/projects';
-    $name //= trace_name();
+    $name //= trace_name($CHECKOUT);
     die "$prog: no such trace root: $root\n" unless -d $root;
 
     my @rows;
@@ -105,14 +117,20 @@ sub main () {
     }
 }
 
-# The trace directory name of the main checkout that holds this file.
-sub trace_name () {
-    my $me = File::Spec->rel2abs(__FILE__);
-    my $checkout = abs_path(dirname(dirname($me)))
+# The path of the main checkout that holds this file. The derivation
+# cuts the path at the last .claude/worktrees/ marker (WS-HOOKS-4).
+sub checkout () {
+    my $me   = File::Spec->rel2abs(__FILE__);
+    my $path = abs_path(dirname(dirname($me)))
         or die "$prog: cannot resolve $me\n";
-    my $at = rindex($checkout, $MARKER);
-    $checkout = substr($checkout, 0, $at) if $at >= 0;
-    return $checkout =~ s/[^A-Za-z0-9-]/-/gr;
+    my $at = rindex($path, $MARKER);
+    return $at >= 0 ? substr($path, 0, $at) : $path;
+}
+
+# The trace directory name of one checkout path: each character that
+# is not a letter, a digit or a hyphen becomes a hyphen.
+sub trace_name ($path) {
+    return $path =~ s/[^A-Za-z0-9-]/-/gr;
 }
 
 # The trace directories of one checkout: the checkout itself, each
@@ -201,7 +219,7 @@ sub tally ($path) {
                 $row{launches}{ $block->{id} } = 1
                     if length($block->{id} // '');
             } elsif ($launched && $EDIT{ $block->{name} // '' }) {
-                $row{edits}++ unless in_scratch($block);
+                $row{edits}++ if repo_edit($block);
             }
         }
     }
@@ -229,25 +247,38 @@ sub usage_of ($rec) {
     return [$in, $u->{output_tokens} // 0];
 }
 
-# True when one edit block targets scratch space: a path under
+# True when one edit block changes a repository file. The target is
+# file_path, or notebook_path for a notebook.
+#
+# An absolute target must sit inside the checkout, on a directory
+# boundary, so a write to the operator HOME, or to a sibling such as
+# <checkout>-backup, is no repository file. A relative target sits
+# inside it, because the path resolves against the working directory
+# of the session. A block with no target counts as an edit, which is
+# the safe direction.
+#
+# A target in scratch space is no repository file: a path under
 # scratch/, or a SCRATCHPAD*.md file. The name must start a path
 # segment and the scratchpad must end the path, so myscratch/x.md,
-# NOTSCRATCHPAD.md and SCRATCHPAD-3.md.bak stay edits. The target is
-# file_path, or notebook_path for a notebook. A relative path and an
-# absolute path both carry the name in the same place. A block with no
-# target counts as an edit, which is the safe direction.
-sub in_scratch ($block) {
+# NOTSCRATCHPAD.md and SCRATCHPAD-3.md.bak stay edits.
+sub repo_edit ($block) {
     my $input = $block->{input} // {};
     my $path  = $input->{file_path} // $input->{notebook_path} // '';
-    return $path =~ $SCRATCH ? 1 : 0;
+    return 0 if $path =~ m{\A/} && index($path, "$CHECKOUT/") != 0;
+    return $path =~ $SCRATCH ? 0 : 1;
 }
 
-# One launch of one panel member. The panel dispatches a reviewer
-# agent, and the description of each member names the panel.
+# One launch of one panel member. The type of the agent decides
+# first: a reviewer is a member, and another role, such as a fixer, is
+# not one. A catch-all type and an absent type name no role, so the
+# description decides. The panel of an early session dispatched a
+# catch-all agent, and the description of each member names the panel.
 sub is_panel ($block) {
     return 0 unless $LAUNCH{ $block->{name} // '' };
     my $input = $block->{input} // {};
-    return 1 if ($input->{subagent_type} // '') eq 'reviewer';
+    my $type  = $input->{subagent_type} // '';
+    return 1 if $type eq 'reviewer';
+    return 0 if length $type && !$CATCHALL{$type};
     return ($input->{description} // '') =~ /panel/i ? 1 : 0;
 }
 
