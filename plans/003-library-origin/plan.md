@@ -40,13 +40,12 @@ Out of scope:
 
 ## Constraints that shape the design
 
-**The hook keeps the session alive.** The `hook-start` command wraps `init` in
-an `eval` today, so a session starts when `init` stops. That fact lets `init`
-stop on a bad configuration. When the key is absent, `init` stops with a
-configuration error, exit 3, and its message names `wiki.origin`. This matches
-FuguBench CLI-CONFIG-2, the rule for a key without a default. The session then
-starts without a library, and `status` reports the absence. LIB-HOOKS and
-LIB-WIKI-4 hold.
+**The hook keeps the session alive.** When the key is absent, `cmd_init` dies
+with a message that names `wiki.origin`. `main` maps that die to exit 3, the
+configuration error of FuguBench CLI-PROGRAM-5. `main` calls `cmd_init` outside
+an `eval` today, so the implementation adds the mapping there. The `eval` of
+`hook-start` catches the die and warns, so the session starts without a library.
+`status` reports the absence, and LIB-HOOKS and LIB-WIKI-4 hold.
 
 **The reader stays small.** `wiki.pl` reads `<root>/.toolingrc` line by line: a
 key, whitespace, a value, and a `#` comment. It takes the `wiki.origin` line and
@@ -66,11 +65,11 @@ Each fixture names that origin as a `file://` URL, so the scheme check passes.
 
 `.toolingrc` gains the line `wiki.origin https://github.com/FuguBSD/Wiki.git`.
 
-`wiki.pl init` reads the key from `<root>/.toolingrc`. With the key, it clones
-the URL into `Wiki/` when the directory is absent. Without the key, or without
-the file, it stops with a configuration error and exit 3. The message names
-`wiki.origin`. A value without a scheme stops the same way. Every other
-subcommand changes nothing.
+When `Wiki/` exists, `wiki.pl init` changes nothing and reads no key. Otherwise
+it reads `wiki.origin` from `<root>/.toolingrc`, then clones the URL into
+`Wiki/`. Without the key, or without the file, it stops with a configuration
+error and exit 3. The message names `wiki.origin`. A value without a scheme
+stops the same way. Every other subcommand changes nothing.
 
 LIB-LIBRARY gains this rule: "`.toolingrc` must name the origin of the library
 under `wiki.origin`, and each library tool must read the URL there. A tool must
@@ -80,13 +79,13 @@ lands.
 
 ## Files
 
-| File              | Change                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| `.toolingrc`      | The `wiki.origin` line                                                                                          |
-| `scripts/wiki.pl` | The reader, in place of the constant                                                                            |
-| `t/ci/wiki.t`     | The `init` tests below                                                                                          |
-| `spec/library.md` | The rule of LIB-LIBRARY                                                                                         |
-| `spec/STATUS.md`  | The LIB-LIBRARY note names `.toolingrc` and `wiki.t`, and the `library.md` row of Code roots gains `.toolingrc` |
+| File              | Change                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.toolingrc`      | The `wiki.origin` line                                                                                                                                                        |
+| `scripts/wiki.pl` | The reader, in place of the constant                                                                                                                                          |
+| `t/ci/wiki.t`     | The `init` tests below                                                                                                                                                        |
+| `spec/library.md` | The rule of LIB-LIBRARY                                                                                                                                                       |
+| `spec/STATUS.md`  | The LIB-LIBRARY note names `.toolingrc` and `wiki.t`. The `library.md` row of Code roots gains `.toolingrc`, and the intro sentence of Code roots adds it to the shared roots |
 
 ## Tests
 
@@ -94,8 +93,10 @@ lands.
 
 - `init` with a `.toolingrc` that names the bare origin as a `file://` URL
   clones it into `Wiki/`, and a second run changes nothing.
+- `init` with a present `Wiki/` and no key exits 0 and changes nothing.
 - `init` without the key exits 3 with a message that names the key, and no
   `Wiki/` appears.
+- `init` without a `.toolingrc` exits 3 with a message that names the key.
 - `init` with a value that holds no scheme exits 3 the same way.
 - A `#` comment and a line of another tool change nothing.
 - The tracked `.toolingrc` holds one `wiki.origin` line, and its value is the
