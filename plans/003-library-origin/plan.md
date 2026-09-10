@@ -33,19 +33,25 @@ In scope:
 
 Out of scope:
 
-- Every other `wiki.` key of FuguBench. Each one has a default that matches this
-  workspace: `Wiki`, `Projects`, and the name of the root directory.
+- Every other `wiki.` key of FuguBench. Each one keeps its default here. The
+  later shim plan sets `wiki.project Workspace`, because `wiki.pl` names a root
+  session `Workspace` today.
 - The swap to the shim. It is the later plan above.
 
 ## Constraints that shape the design
 
-**A hook must never stop a session.** LIB-HOOKS and LIB-WIKI-4 hold. When the
-key is absent, `init` warns and exits zero, as a failed clone does today. The
-session then starts without a library, and `status` reports the absence.
+**The hook keeps the session alive.** The `hook-start` command wraps `init` in
+an `eval` today, so a session starts when `init` stops. That fact lets `init`
+stop on a bad configuration. When the key is absent, `init` stops with a
+configuration error, exit 3, and its message names `wiki.origin`. This matches
+FuguBench CLI-CONFIG-2, the rule for a key without a default. The session then
+starts without a library, and `status` reports the absence. LIB-HOOKS and
+LIB-WIKI-4 hold.
 
 **The reader stays small.** `wiki.pl` reads `<root>/.toolingrc` line by line: a
 key, whitespace, a value, and a `#` comment. It takes the `wiki.origin` line and
-ignores every other line. A URL without a scheme is an error that names the key.
+ignores every other line. A value without a scheme stops `init` the same way,
+with an error that names the key.
 
 **The root of the key is the checkout root.** `wiki.pl` finds its root as the
 nearest directory that holds `.git` and the script. A worktree is such a root,
@@ -54,6 +60,7 @@ same line.
 
 **No test reaches the network.** Each `init` test writes a `.toolingrc` into its
 fixture checkout, with a bare repository of the temporary tree as the origin.
+Each fixture names that origin as a `file://` URL, so the scheme check passes.
 
 ## The interface contract
 
@@ -61,34 +68,35 @@ fixture checkout, with a bare repository of the temporary tree as the origin.
 
 `wiki.pl init` reads the key from `<root>/.toolingrc`. With the key, it clones
 the URL into `Wiki/` when the directory is absent. Without the key, or without
-the file, it warns `no wiki.origin in .toolingrc` and exits zero. Every other
+the file, it stops with a configuration error and exit 3. The message names
+`wiki.origin`. A value without a scheme stops the same way. Every other
 subcommand changes nothing.
 
-The new rule of LIB-LIBRARY reads: "`.toolingrc` must name the origin of the
-library under `wiki.origin`. Each library tool must read the URL there, and no
-tool holds it in its source." A plan names no rule number, because a number
-exists after the rule lands.
+LIB-LIBRARY gains this rule: "`.toolingrc` must name the origin of the library
+under `wiki.origin`, and each library tool must read the URL there. A tool must
+stop with an error that names the key when the key is absent or its value holds
+no scheme." A plan names no rule number, because a number exists after the rule
+lands.
 
 ## Files
 
-| File              | Change                                               |
-| ----------------- | ---------------------------------------------------- |
-| `.toolingrc`      | The `wiki.origin` line                               |
-| `scripts/wiki.pl` | The reader, in place of the constant                 |
-| `t/ci/wiki.t`     | The `init` tests below                               |
-| `spec/library.md` | The rule of LIB-LIBRARY                              |
-| `spec/STATUS.md`  | The LIB-LIBRARY note names `.toolingrc` and `wiki.t` |
+| File              | Change                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `.toolingrc`      | The `wiki.origin` line                                                                                          |
+| `scripts/wiki.pl` | The reader, in place of the constant                                                                            |
+| `t/ci/wiki.t`     | The `init` tests below                                                                                          |
+| `spec/library.md` | The rule of LIB-LIBRARY                                                                                         |
+| `spec/STATUS.md`  | The LIB-LIBRARY note names `.toolingrc` and `wiki.t`, and the `library.md` row of Code roots gains `.toolingrc` |
 
 ## Tests
 
 `t/ci/wiki.t` builds a fixture checkout with a bare origin. It gains:
 
-- `init` with a `.toolingrc` that names the bare origin clones it into `Wiki/`,
-  and a second run changes nothing.
-- `init` without the key warns with the key name and exits zero, and no `Wiki/`
-  appears.
-- `init` with a value that holds no scheme fails with a message that names the
-  key.
+- `init` with a `.toolingrc` that names the bare origin as a `file://` URL
+  clones it into `Wiki/`, and a second run changes nothing.
+- `init` without the key exits 3 with a message that names the key, and no
+  `Wiki/` appears.
+- `init` with a value that holds no scheme exits 3 the same way.
 - A `#` comment and a line of another tool change nothing.
 - The tracked `.toolingrc` holds one `wiki.origin` line, and its value is the
   URL of `FuguBSD/Wiki`.
@@ -97,8 +105,9 @@ exists after the rule lands.
 
 - `make check` passes.
 - `grep -c 'github.com/FuguBSD/Wiki' scripts/wiki.pl` prints 0.
-- `make bootstrap` in a fresh worktree clones the library as before.
-- LIB-LIBRARY stays `done`, and its note names the two files.
+- `make clone` in the main checkout clones the library as before.
+- LIB-LIBRARY stays `done`, and its note names the two files. The `library.md`
+  row of Code roots names `.toolingrc`.
 - The change deletes this plan.
 
 ## Open questions
