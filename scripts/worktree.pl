@@ -14,7 +14,10 @@
 # the only line — this is the contract of the WorktreeCreate hook.
 # Create refuses a name that puts the new worktree in an existing
 # worktree. After a failure, or after SIGINT or SIGTERM, create stops
-# its child processes and removes all that it made.
+# its child processes and removes all that it made. A second create
+# of a name whose worktree exists repairs the bootstrap and writes
+# the path again: Claude Code runs the hook again when a session
+# reconnects, and that run must not fail.
 #
 # The command "remove" removes the worktree and its branch. It can
 # remove locked worktrees, debris from a killed create, and worktrees
@@ -159,7 +162,22 @@ sub main {
 sub cmd_create {
     my ($root, $name) = @_;
     my $wt = "$root/$WORKTREES/$name";
-    die "$prog: already exists: $wt\n" if -e $wt;
+    if (-e $wt) {
+        # A worktree that a previous create made is not an error: a
+        # session that reconnects runs the hook again with the same
+        # name. Repair the bootstrap (each clone step skips what
+        # exists) and report the path. A directory that git does not
+        # know is debris, and only remove clears it.
+        my $branch = -e "$wt/.git"
+            ? capture('git', '-C', $wt, 'branch', '--show-current')
+            : undef;
+        die "$prog: already exists, not a worktree of $name: $wt\n"
+            . "$prog: remove it with: worktree.pl remove $name\n"
+            unless defined $branch && $branch eq $name;
+        bootstrap($root, $wt);
+        print {$result} "$wt\n";
+        return;
+    }
 
     # A worktree with a slash in its name must not be in an existing
     # worktree: removal of the outer worktree also destroys the inner
@@ -213,11 +231,7 @@ sub cmd_create {
 
     eval {
         run('git', '-C', $root, 'worktree', 'add', $wt, $name);
-        # The bootstrap is a task of the workspace: the bootstrap make
-        # target makes all that the worktree needs. It makes local
-        # clones from MAIN, usually with the clone subcommand below.
-        run('make', '-C', $wt, 'bootstrap', "MAIN=$root")
-            if -f "$wt/GNUmakefile" || -f "$wt/Makefile" || -f "$wt/makefile";
+        bootstrap($root, $wt);
         1;
     } or do {
         my $err = $@;
@@ -226,6 +240,16 @@ sub cmd_create {
     };
 
     print {$result} "$wt\n";
+}
+
+# The bootstrap is a task of the workspace: the bootstrap make target
+# makes all that the worktree needs. It makes local clones from MAIN,
+# usually with the clone subcommand below. A second run repairs an
+# incomplete bootstrap, because each clone step skips what exists.
+sub bootstrap {
+    my ($root, $wt) = @_;
+    run('make', '-C', $wt, 'bootstrap', "MAIN=$root")
+        if -f "$wt/GNUmakefile" || -f "$wt/Makefile" || -f "$wt/makefile";
 }
 
 sub cmd_remove {

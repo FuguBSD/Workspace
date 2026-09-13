@@ -111,7 +111,9 @@ updates the matching `~/.aws/credentials` section in the same change.
   branch `<name>` that starts at the local HEAD.
 - **WS-WORKTREE-2** — `worktree.pl create <name>` bootstraps the worktree with
   the `bootstrap` make target and `MAIN=<main checkout>`, and writes the
-  worktree path to stdout as the only line.
+  worktree path to stdout as the only line. Claude Code runs the create hook
+  again when a session reconnects. So a second create of an existing worktree
+  must run the bootstrap again and write the path again.
 - **WS-WORKTREE-3** — After a failure, or after SIGINT or SIGTERM, create
   removes all that it made: a failed run leaves no worktree and no branch.
 - **WS-WORKTREE-4** — `worktree.pl remove <name>` removes the worktree and

@@ -10,6 +10,7 @@
 
 use v5.36;
 use Test::More;
+use Cwd        qw(abs_path);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin    qw($RealBin);
@@ -90,6 +91,31 @@ subtest 'a bootstrap writes no settings file' => sub {
 	close $mk;
 	unlike( $fragment, qr/envsync|settings\.local/,
 		'the make fragment holds no settings step' );
+};
+
+subtest 'a second create of an existing worktree reports the path' => sub {
+
+	# WS-WORKTREE-2: Claude Code runs the create hook again when a
+	# session reconnects, with the same name. The second run must
+	# exit zero and write the same path, or the session fails.
+	my ( $root, $wt ) = _repo('again');
+
+	my ( $rc, $out ) = _run( $root, 'create', 'again' );
+	is( $rc, 0, 'create accepts its own worktree' ) or diag $out;
+	# The temp directory is a symlink on macOS, and create writes
+	# the resolved path.
+	my $real = abs_path($wt);
+	like( $out, qr/^\Q$real\E$/m, 'create writes the path' );
+	ok( -d $wt, 'the worktree stays' );
+
+	# A directory that git does not know is debris from a killed
+	# create. Create must refuse it and name the remedy.
+	make_path("$root/.claude/worktrees/debris");
+	( $rc, $out ) = _run( $root, 'create', 'debris' );
+	isnt( $rc, 0, 'create refuses debris' );
+	like( $out, qr/remove debris/, 'the message names the remedy' );
+	ok( !-e "$root/.claude/worktrees/debris/.git",
+		'create makes no worktree in the debris' );
 };
 
 subtest 'a clean worktree is removed' => sub {
