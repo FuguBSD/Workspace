@@ -2,7 +2,8 @@
 name: handover
 description:
   Push the work of this session, and write the handover file in the main
-  checkout. Use when a session ends and the plan still holds work.
+  checkout. Use when the context has no room for the next deliverable, and the
+  plan still holds work.
 ---
 
 # handover
@@ -27,8 +28,10 @@ the handover file must sit in the main checkout. Keep nothing here.
    git push -u origin HEAD
    ```
 
-4. Take the next free number in the main checkout. A `SCRATCHPAD-*.md` file is
-   gitignored, so the number is local to the checkout:
+4. Take the next free number in the main checkout, one time in this session.
+   Write that same file again after each later deliverable, so one session
+   leaves one handover file. A `SCRATCHPAD-*.md` file is gitignored, so the
+   number is local to the checkout:
 
    ```sh
    MAIN=$(dirname $(git rev-parse --path-format=absolute --git-common-dir))

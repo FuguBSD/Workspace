@@ -36,8 +36,8 @@ remote, and the handover file names each branch.
 4. Open the plan that "The plan" names, and read its ledger. Correct the ledger
    before you start when it disagrees with the repository.
 
-5. Take the first open step of the plan, in the order of the plan. Stop at a
-   step that "What remains" marks for a human, and report it.
+5. Take the open steps of the plan, in the order of the plan. Stop at a step
+   that "What remains" marks for a human, and report it.
 
 ## The bounds
 

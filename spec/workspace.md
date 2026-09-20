@@ -135,12 +135,12 @@ updates the matching `~/.aws/credentials` section in the same change.
 ## The session
 
 A session of this checkout carries its whole context for hours, and the output
-of the model stays in that context. A second task in one session therefore pays
-for the context of the first one. `.claude/rules/workspace.md` holds the session
-rules, because the org pack of FuguBSD/Tooling owns the root `CLAUDE.md`.
-`scripts/traces.pl` is the yardstick. It reads the session traces of the
-operator HOME, and it prints one line for each session that holds a request. The
-columns are:
+of the model stays in that context. The session therefore delegates every bulk
+read and every whole-file write, and it starts a new session when the context
+has no room. `.claude/rules/workspace.md` holds the session rules, because the
+org pack of FuguBSD/Tooling owns the root `CLAUDE.md`. `scripts/traces.pl` is
+the yardstick. It reads the session traces of the operator HOME, and it prints
+one line for each session that holds a request. The columns are:
 
 - the main session: the identifier, the start time, the request count, the peak
   context and the output tokens;
@@ -157,8 +157,8 @@ wide reviewer therefore breaks the bar, and a normal reviewer does not.
 - **WS-SESSION-1** — `.claude/rules/workspace.md` must hold the workspace-only
   session rules, and must carry no `paths` field, so Claude Code loads it at
   each launch (D-10).
-- **WS-SESSION-2** — A session must land one deliverable, and the next
-  deliverable must start in a new session (D-11).
+- **WS-SESSION-2** — A session must carry work while its context has room, and
+  must start a new session when it does not (D-11).
 - **WS-SESSION-3** — The main session must dispatch an `implementer` agent for
   each work package, and a `fixer` agent for each review fix. The agent files of
   the org pack hold the rules of the two agents.
@@ -175,8 +175,7 @@ wide reviewer therefore breaks the bar, and a normal reviewer does not.
 - **WS-SESSION-7** — The usage of one request must count one time. One request
   writes one record for each content block, so the script must read the last
   record of the request.
-- **WS-SESSION-8** — The report must meet four targets:
-  - The peak context of the main session stays under 300k tokens.
+- **WS-SESSION-8** — The report must meet three targets:
   - The main session edits no repository file after the first panel launch.
   - The review panel runs three rounds or fewer.
   - The `rev-peak` column stays under 120k tokens.
