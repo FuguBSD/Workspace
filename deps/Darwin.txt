@@ -1,4 +1,4 @@
-# External dependencies of the workspace. scripts/deps installs each line.
+# External dependencies of the workspace. fugubench deps installs each line.
 # The GitHub CLI lists the org projects and clones each absent project. The
 # macOS release ships a zip, so this line differs from the Linux line.
 runtime bin gh https://github.com/cli/cli/releases/download/v2.97.0/gh_2.97.0_{os}_{arch}.zip gh_2.97.0_{os}_{arch}/bin/gh

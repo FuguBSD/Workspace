@@ -9,7 +9,7 @@
 # test is the only gate on it today. The test reads the files as text,
 # so a fault shows at make check, before any download.
 #
-# The test holds no alias table: the table lives in scripts/deps. A
+# The test holds no alias table: the table lives in FuguBench. A
 # digest URL belongs to a manifest entry when the URL of the entry
 # matches it, with each placeholder as a wildcard. The test therefore
 # cannot count the platforms of one entry, and the register records
@@ -22,7 +22,7 @@ use FindBin qw($RealBin);
 my $root = "$RealBin/../..";
 
 # The manifest environments and types. An unknown word in either
-# column hides a line from scripts/deps, so the test names it.
+# column hides a line from the installer, so the test names it.
 my %ENVIRONMENTS = map { $_ => 1 } qw(tool runtime test develop);
 my %TYPES        = map { $_ => 1 } qw(pkg dist cpan bin);
 
@@ -108,7 +108,7 @@ sub _scan ($dir)
 			my $where = "$manifest:$n";
 
 			# A typo in either word hides the line from
-			# scripts/deps, so name it here.
+			# the installer, so name it here.
 			if ( !$ENVIRONMENTS{ $env // q{} } ) {
 				push @bad, "$where: unknown environment: $line";
 				next;
